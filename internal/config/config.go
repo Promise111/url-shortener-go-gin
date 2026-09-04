@@ -13,7 +13,7 @@ type Config struct {
 	Port        string
 }
 
-func Load(databaseURL string) (*Config, error) {
+func Load() (*Config, error) {
 	var err error
 	err = dotenv.Load()
 	if err != nil {
