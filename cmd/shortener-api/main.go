@@ -1,4 +1,4 @@
-package shortenerapi
+package main
 
 import (
 	"log/slog"
