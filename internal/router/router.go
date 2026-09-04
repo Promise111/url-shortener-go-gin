@@ -7,10 +7,10 @@ import (
 )
 
 const (
-	APIPrefix = "/api/v1"
+	APIPrefix    = "/api/v1"
 	HealthPrefix = "/health"
-	AuthPrefix = "/auth"
-	LinkPrefix = "/link"
+	AuthPrefix   = "/auth"
+	LinkPrefix   = "/link"
 )
 
 func Router(cfg *config.Config) *gin.Engine {

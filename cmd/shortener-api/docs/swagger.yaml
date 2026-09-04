@@ -1,0 +1,40 @@
+basePath: /api/v1
+definitions:
+  handler.HealthResponse:
+    properties:
+      message:
+        example: "\U0001F4AA Shortener API is up and running!"
+        type: string
+      status:
+        example: true
+        type: boolean
+    type: object
+host: localhost:8003
+info:
+  contact:
+    email: promiseihunna@gmail.com
+    name: Promise
+  description: API for creating and resolving shortened URLs.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  title: URL Shortener
+  version: "1.0"
+paths:
+  /health:
+    get:
+      description: Returns the health status of the shortener API.
+      operationId: healthCheck
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.HealthResponse'
+      summary: Health check
+      tags:
+      - health
+schemes:
+- http
+swagger: "2.0"
