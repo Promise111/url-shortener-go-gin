@@ -3,7 +3,7 @@ package model
 import "time"
 
 type Link struct {
-	ID        string     `json:"id" db:"id"`
+	ID        int64     `json:"id" db:"id"`
 	LongURL   string     `json:"long_url" db:"long_url"`
 	ShortCode string     `json:"short_code" db:"short_code"`
 	ExpiresAt    *time.Time `json:"expires_at" db:"expires_at"`

@@ -15,7 +15,7 @@ func CreateLink(pool *pgxpool.Pool, longURL string, shortCode string, expiresAt 
 	defer cancel()
 
 	var query string = `
-	INSERT INTO link (long_url, short_code, expires_at) 
+	INSERT INTO links (long_url, short_code, expires_at) 
 	VALUES ($1, $2, $3) 
 	RETURNING id, long_url, short_code, expires_at, clicks, created_at, updated_at;
 	`
@@ -29,7 +29,7 @@ func CreateLink(pool *pgxpool.Pool, longURL string, shortCode string, expiresAt 
 		&link.ExpiresAt,
 		&link.Clicks,
 		&link.CreatedAt,
-		&link.ExpiresAt,
+		&link.UpdatedAt,
 	)
 
 	if err != nil {
