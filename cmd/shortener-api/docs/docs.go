@@ -50,9 +50,23 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Links"
+                    "links"
                 ],
                 "summary": "Get links",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "limit pagination records",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "specify pagination page",
+                        "name": "page",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -61,6 +75,13 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/handler.GetLinksResponse"
                             }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -90,6 +111,42 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/handler.CreateLinkResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/links/{id}": {
+            "get": {
+                "description": "Fetch link by Id",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "links"
+                ],
+                "summary": "Get link",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Link ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GetLinkResponse"
                         }
                     },
                     "400": {
@@ -134,6 +191,22 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.GetLinkResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/handler.LinkSample"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Records fetched successfully!"
+                },
+                "status": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
         "handler.GetLinksResponse": {
             "type": "object",
             "properties": {
@@ -169,6 +242,10 @@ const docTemplate = `{
         "handler.LinkSample": {
             "type": "object",
             "properties": {
+                "clicks": {
+                    "type": "integer",
+                    "example": 10
+                },
                 "created_at": {
                     "type": "string",
                     "example": "2026-02-02T00:00:00Z"

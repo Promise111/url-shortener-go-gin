@@ -47,16 +47,17 @@ func GetLinkByID(pool *pgxpool.Pool, id int64) (*model.Link, error) {
 
 	var query string = `
 	SELECT * FROM links 
-	WHERE ID = $1;
+	WHERE id = $1;
 	`
 
 	var link model.Link
 
 	var err error = pool.QueryRow(ctx, query, id).Scan(
 		&link.ID,
-		&link.ShortCode,
+		&link.LongURL,
 		&link.ShortCode,
 		&link.ExpiresAt,
+		&link.Clicks,
 		&link.CreatedAt,
 		&link.UpdatedAt,
 	)
@@ -67,18 +68,21 @@ func GetLinkByID(pool *pgxpool.Pool, id int64) (*model.Link, error) {
 	return &link, nil
 }
 
-func GetLinks(pool *pgxpool.Pool) ([]model.Link, error) {
+func GetLinks(pool *pgxpool.Pool, page int, limit int) ([]model.Link, error) {
 	var ctx context.Context
 	var cancel context.CancelFunc
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	var offset = (page - 1) * limit
 	var query string = `
 	SELECT * 
 	FROM links 
 	ORDER BY created_at DESC
+	LIMIT $1 OFFSET $2
 	`
-	rows, err := pool.Query(ctx, query)
+
+	rows, err := pool.Query(ctx, query, limit, offset)
 	if err != nil {
 		return nil, err
 	}

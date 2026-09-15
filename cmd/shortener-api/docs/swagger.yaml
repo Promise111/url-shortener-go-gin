@@ -20,6 +20,17 @@ definitions:
         example: true
         type: boolean
     type: object
+  handler.GetLinkResponse:
+    properties:
+      data:
+        $ref: '#/definitions/handler.LinkSample'
+      message:
+        example: Records fetched successfully!
+        type: string
+      status:
+        example: true
+        type: boolean
+    type: object
   handler.GetLinksResponse:
     properties:
       data:
@@ -44,6 +55,9 @@ definitions:
     type: object
   handler.LinkSample:
     properties:
+      clicks:
+        example: 10
+        type: integer
       created_at:
         example: "2026-02-02T00:00:00Z"
         type: string
@@ -92,6 +106,15 @@ paths:
   /links:
     get:
       description: Fetch all links record
+      parameters:
+      - description: limit pagination records
+        in: query
+        name: limit
+        type: string
+      - description: specify pagination page
+        in: query
+        name: page
+        type: string
       produces:
       - application/json
       responses:
@@ -101,9 +124,14 @@ paths:
             items:
               $ref: '#/definitions/handler.GetLinksResponse'
             type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
       summary: Get links
       tags:
-      - Links
+      - links
     post:
       description: Create new shortened URL
       parameters:
@@ -126,6 +154,30 @@ paths:
             additionalProperties: true
             type: object
       summary: Shorten URL
+      tags:
+      - links
+  /links/{id}:
+    get:
+      description: Fetch link by Id
+      parameters:
+      - description: Link ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GetLinkResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get link
       tags:
       - links
 schemes:

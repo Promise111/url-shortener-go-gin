@@ -26,7 +26,8 @@ func Router(pool *pgxpool.Pool, cfg *config.Config) *gin.Engine {
 	{
 		link := api.Group(LinkPrefix)
 		link.POST("", handler.CreateLinkHandler(pool))
-		link.GET("/:id", handler.GetLinksHandler(pool))
+		link.GET("", handler.GetLinksHandler(pool))
+		link.GET("/:id", handler.GetLinkByIDHandler(pool))
 	}
 
 	return r

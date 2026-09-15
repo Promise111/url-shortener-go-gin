@@ -119,15 +119,33 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 
 // @Summary Get links
 // @Description Fetch all links record
-// @Tags Links
+// @Tags links
 // @Produce json
+// @Param limit query string false "limit pagination records"
+// @Param page query string false "specify pagination page"
 // @Success 200 {object} []GetLinksResponse
+// @Failure 400 {object} map[string]any
 // @Router /links [get]
 func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		var limit int = 10
+		var page int = 1
 		var links []model.Link
 		var err error
-		links, err = repository.GetLinks(pool)
+		if queryLimit := c.Query("limit"); queryLimit != "" {
+			if l, err := strconv.Atoi(queryLimit); err == nil && l > 0 {
+				if l > 100 {
+					l = 100
+				}
+				limit = l
+			}
+		}
+		if queryPage := c.Query("page"); queryPage != "" {
+			if p, err := strconv.Atoi(queryPage); err == nil && p > 0 {
+				page = p
+			}
+		}
+		links, err = repository.GetLinks(pool, page, limit)
 		if err != nil {
 			slog.Error(err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -147,10 +165,12 @@ func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 
 // @Summary Get link
 // @Description Fetch link by Id
-// @Tags Link
+// @Tags links
+// @Param id path int true "Link ID"
 // @Produce json
 // @Success 200 {object} GetLinkResponse
-// @Router /links/:id [get]
+// @Failure 400 {object} map[string]any
+// @Router /links/{id} [get]
 func GetLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		idParam := c.Param("id")
@@ -170,8 +190,9 @@ func GetLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		link, err = repository.GetLinkByID(pool, id)
 
 		if err != nil {
+			slog.Error(err.Error())
 			if errors.Is(err, pgx.ErrNoRows) {
-				c.JSON(http.StatusInternalServerError, gin.H{
+				c.JSON(http.StatusNotFound, gin.H{
 					"status":  false,
 					"message": "URL record not found.",
 				})
