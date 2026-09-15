@@ -1,0 +1,194 @@
+package handler
+
+import (
+	"errors"
+	"log/slog"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/Promise111/url-shortener-go-gin/internal/model"
+	"github.com/Promise111/url-shortener-go-gin/internal/repository"
+	"github.com/Promise111/url-shortener-go-gin/internal/util"
+	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+var ErrExpiresAtInPast = errors.New("expires_at must be in the future")
+
+type CreateLinkRequest struct {
+	LongURL   string     `json:"long_url" binding:"required"`
+	ExpiresAt *time.Time `json:"expires_at"`
+}
+
+func (r CreateLinkRequest) ValidateExpiresAt() error {
+	if r.ExpiresAt == nil {
+		return nil
+	}
+	if !r.ExpiresAt.After(time.Now().UTC()) {
+		return ErrExpiresAtInPast
+	}
+	return nil
+}
+
+type LinkSample struct {
+	ID        int64      `json:"id" example:"1"`
+	LongURL   string     `json:"long_url" example:"https://facebook.com"`
+	ShortCode string     `json:"short_code" example:"1234567890"`
+	ExpiresAt *time.Time `json:"expires_at" example:"2027-04-08T00:00:00Z"`
+	Clicks    int64      `json:"clicks" example:"10"`
+	CreatedAt time.Time  `json:"created_at" example:"2026-02-02T00:00:00Z"`
+	UpdatedAt time.Time  `json:"updated_at" example:"2026-09-11T00:00:00Z"`
+}
+
+type CreateLinkResponse struct {
+	Status  bool       `json:"status" example:"true"`
+	Message string     `json:"message" example:"Link created successfully!"`
+	Data    LinkSample `json:"data"`
+}
+
+type GetLinksResponse struct {
+	Status  bool         `json:"status" example:"true"`
+	Message string       `json:"message" example:"Link created successfully!"`
+	Data    []LinkSample `json:"data"`
+}
+
+type GetLinkResponse struct {
+	Status  bool   `json:"status" example:"true"`
+	Message string `json:"message" example:"Records fetched successfully!"`
+	Data    LinkSample
+}
+
+// @Summary Shorten URL
+// @Description Create new shortened URL
+// @Tags links
+// @Accepts json
+// @Produce json
+// @Param request body CreateLinkRequest true "Create Link payload"
+// @Success 201 {object} CreateLinkResponse
+// @Failure 400 {object} map[string]any
+// @Router /links [post]
+func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var CreateLinkReq CreateLinkRequest
+		var err error
+		if err = c.ShouldBindJSON(&CreateLinkReq); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": err.Error(),
+			})
+			return
+		}
+
+		if err = CreateLinkReq.ValidateExpiresAt(); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "expires_at must be in the future.",
+			})
+			return
+		}
+
+		var link *model.Link
+
+		shortCode, shortCodeGenErr := util.GenerateShortCode(10)
+		if shortCodeGenErr != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": "Something went wrong.",
+			})
+		}
+
+		link, err = repository.CreateLink(pool, CreateLinkReq.LongURL, shortCode, CreateLinkReq.ExpiresAt)
+
+		c.JSON(http.StatusCreated, CreateLinkResponse{
+			Status:  true,
+			Message: "Link created successfuly!",
+			Data: LinkSample{
+				ID:        link.ID,
+				LongURL:   link.LongURL,
+				ShortCode: link.ShortCode,
+				ExpiresAt: link.ExpiresAt,
+				Clicks:    link.Clicks,
+				CreatedAt: link.CreatedAt,
+				UpdatedAt: link.UpdatedAt,
+			},
+		})
+	}
+}
+
+// @Summary Get links
+// @Description Fetch all links record
+// @Tags Links
+// @Produce json
+// @Success 200 {object} []GetLinksResponse
+// @Router /links [get]
+func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var links []model.Link
+		var err error
+		links, err = repository.GetLinks(pool)
+		if err != nil {
+			slog.Error(err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  true,
+				"message": "Something went wrong",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Links fetched successfully!",
+			"data":    links,
+		})
+	}
+}
+
+// @Summary Get link
+// @Description Fetch link by Id
+// @Tags Link
+// @Produce json
+// @Success 200 {object} GetLinkResponse
+// @Router /links/:id [get]
+func GetLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		idParam := c.Param("id")
+		var id int64
+		var err error
+		id, err = strconv.ParseInt(idParam, 10, 64) // alternative to int64(id)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "Enter valid id parameter",
+			})
+			return
+		}
+
+		var link *model.Link
+
+		link, err = repository.GetLinkByID(pool, id)
+
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"status":  false,
+					"message": "URL record not found.",
+				})
+				return
+			}
+			c.JSON(http.StatusInternalServerError,
+				gin.H{
+					"status":  false,
+					"message": "Something went wrong!",
+				})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Records fetched successfully!",
+			"data":    link,
+		})
+	}
+}

@@ -6,7 +6,9 @@ import (
 
 	docs "github.com/Promise111/url-shortener-go-gin/cmd/shortener-api/docs"
 	"github.com/Promise111/url-shortener-go-gin/internal/config"
+	"github.com/Promise111/url-shortener-go-gin/internal/database"
 	"github.com/Promise111/url-shortener-go-gin/internal/router"
+	"github.com/jackc/pgx/v5/pgxpool"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
@@ -33,11 +35,19 @@ func main() {
 		os.Exit(1)
 	}
 
+	var pool *pgxpool.Pool
+	var dbConnErr error
+	pool, dbConnErr = database.Connect(cfg.DatabaseURL)
+	if dbConnErr != nil {
+		slog.Error("Database connection failed " + dbConnErr.Error())
+		os.Exit(1)
+	}
+
 	docs.SwaggerInfo.BasePath = router.APIPrefix
 	docs.SwaggerInfo.Host = "localhost:" + cfg.Port
 	docs.SwaggerInfo.Schemes = []string{"http"}
 
-	var r = router.Router(cfg)
+	var r = router.Router(pool, cfg)
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	r.Run(":" + cfg.Port)
 }

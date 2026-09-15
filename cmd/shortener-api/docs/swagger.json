@@ -39,9 +39,117 @@
                     }
                 }
             }
+        },
+        "/links": {
+            "get": {
+                "description": "Fetch all links record",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Links"
+                ],
+                "summary": "Get links",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/handler.GetLinksResponse"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create new shortened URL",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "links"
+                ],
+                "summary": "Shorten URL",
+                "parameters": [
+                    {
+                        "description": "Create Link payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.CreateLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.CreateLinkResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "handler.CreateLinkRequest": {
+            "type": "object",
+            "required": [
+                "long_url"
+            ],
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "long_url": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.CreateLinkResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/handler.LinkSample"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Link created successfully!"
+                },
+                "status": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "handler.GetLinksResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.LinkSample"
+                    }
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Link created successfully!"
+                },
+                "status": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
         "handler.HealthResponse": {
             "type": "object",
             "properties": {
@@ -52,6 +160,35 @@
                 "status": {
                     "type": "boolean",
                     "example": true
+                }
+            }
+        },
+        "handler.LinkSample": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "example": "2026-02-02T00:00:00Z"
+                },
+                "expires_at": {
+                    "type": "string",
+                    "example": "2027-04-08T00:00:00Z"
+                },
+                "id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "long_url": {
+                    "type": "string",
+                    "example": "https://facebook.com"
+                },
+                "short_code": {
+                    "type": "string",
+                    "example": "1234567890"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2026-09-11T00:00:00Z"
                 }
             }
         }

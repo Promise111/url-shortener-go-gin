@@ -1,5 +1,38 @@
 basePath: /api/v1
 definitions:
+  handler.CreateLinkRequest:
+    properties:
+      expires_at:
+        type: string
+      long_url:
+        type: string
+    required:
+    - long_url
+    type: object
+  handler.CreateLinkResponse:
+    properties:
+      data:
+        $ref: '#/definitions/handler.LinkSample'
+      message:
+        example: Link created successfully!
+        type: string
+      status:
+        example: true
+        type: boolean
+    type: object
+  handler.GetLinksResponse:
+    properties:
+      data:
+        items:
+          $ref: '#/definitions/handler.LinkSample'
+        type: array
+      message:
+        example: Link created successfully!
+        type: string
+      status:
+        example: true
+        type: boolean
+    type: object
   handler.HealthResponse:
     properties:
       message:
@@ -8,6 +41,27 @@ definitions:
       status:
         example: true
         type: boolean
+    type: object
+  handler.LinkSample:
+    properties:
+      created_at:
+        example: "2026-02-02T00:00:00Z"
+        type: string
+      expires_at:
+        example: "2027-04-08T00:00:00Z"
+        type: string
+      id:
+        example: 1
+        type: integer
+      long_url:
+        example: https://facebook.com
+        type: string
+      short_code:
+        example: "1234567890"
+        type: string
+      updated_at:
+        example: "2026-09-11T00:00:00Z"
+        type: string
     type: object
 host: localhost:8003
 info:
@@ -35,6 +89,45 @@ paths:
       summary: Health check
       tags:
       - health
+  /links:
+    get:
+      description: Fetch all links record
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handler.GetLinksResponse'
+            type: array
+      summary: Get links
+      tags:
+      - Links
+    post:
+      description: Create new shortened URL
+      parameters:
+      - description: Create Link payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CreateLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.CreateLinkResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Shorten URL
+      tags:
+      - links
 schemes:
 - http
 swagger: "2.0"
