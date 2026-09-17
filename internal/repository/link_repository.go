@@ -68,22 +68,23 @@ func GetLinkByID(pool *pgxpool.Pool, id int64) (*model.Link, error) {
 	return &link, nil
 }
 
-func GetTotalLinksCount(pool *pgxpool.Pool) (*int64, error) {
+func GetLinksTotalCount(pool *pgxpool.Pool) (int64, error) {
 	var ctx context.Context
 	var cancel context.CancelFunc
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	var query string = `
-	SELECT COUNT(*) FROM links;
+	SELECT COUNT(*) FROM links 
+	WHERE expires_at IS NULL OR expires_at > NOW();
 	`
 	var total int64
 	var err = pool.QueryRow(ctx, query).Scan(&total)
 	if err != nil {
-		return &total, err
+		return total, err
 	}
 
-	return &total, nil
+	return total, nil
 }
 
 func GetLinks(pool *pgxpool.Pool, page int, limit int) ([]model.Link, error) {

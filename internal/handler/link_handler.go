@@ -149,16 +149,38 @@ func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		if err != nil {
 			slog.Error(err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"status":  true,
+				"status":  false,
 				"message": "Something went wrong",
 			})
 			return
 		}
 
+		var total int64
+		total, err = repository.GetLinksTotalCount(pool)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": "Something went wrong!",
+			})
+			return
+		}
+		var castedLimit = int64(limit)
+		var totalPage int64 = 0
+
+		if total == 0 {
+			totalPage = 0
+		} else {
+			totalPage = (total + castedLimit) / castedLimit
+		}
+
 		c.JSON(http.StatusOK, gin.H{
-			"status":  true,
-			"message": "Links fetched successfully!",
-			"data":    links,
+			"status":    true,
+			"message":   "Links fetched successfully!",
+			"data":      links,
+			"totalPage": totalPage,
+			"total":     total,
+			"page":      page,
+			"limit":     limit,
 		})
 	}
 }
