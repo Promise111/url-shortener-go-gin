@@ -129,10 +129,17 @@ paths:
           schema:
             additionalProperties: true
             type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
       summary: Get links
       tags:
       - links
     post:
+      consumes:
+      - application/json
       description: Create new shortened URL
       parameters:
       - description: Create Link payload
@@ -153,12 +160,46 @@ paths:
           schema:
             additionalProperties: true
             type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
       summary: Shorten URL
       tags:
       - links
   /links/{id}:
+    delete:
+      description: Delete link by id
+      parameters:
+      - description: Link ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Delete link
+      tags:
+      - links
     get:
-      description: Fetch link by Id
+      description: Fetch link by id
       parameters:
       - description: Link ID
         in: path
@@ -174,6 +215,11 @@ paths:
             $ref: '#/definitions/handler.GetLinkResponse'
         "400":
           description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
           schema:
             additionalProperties: true
             type: object

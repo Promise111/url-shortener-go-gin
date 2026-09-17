@@ -18,7 +18,7 @@ import (
 var ErrExpiresAtInPast = errors.New("expires_at must be in the future")
 
 type CreateLinkRequest struct {
-	LongURL   string     `json:"long_url" binding:"required"`
+	LongURL   string     `json:"long_url" binding:"required,url"`
 	ExpiresAt *time.Time `json:"expires_at"`
 }
 
@@ -63,11 +63,12 @@ type GetLinkResponse struct {
 // @Summary Shorten URL
 // @Description Create new shortened URL
 // @Tags links
-// @Accepts json
+// @Accept json
 // @Produce json
 // @Param request body CreateLinkRequest true "Create Link payload"
 // @Success 201 {object} CreateLinkResponse
 // @Failure 400 {object} map[string]any
+// @Failure 500 {object} map[string]interface{}
 // @Router /links [post]
 func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -125,6 +126,7 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Param page query string false "specify pagination page"
 // @Success 200 {object} []GetLinksResponse
 // @Failure 400 {object} map[string]any
+// @Failure 500 {object} map[string]interface{}
 // @Router /links [get]
 func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -148,20 +150,14 @@ func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		links, err = repository.GetLinks(pool, page, limit)
 		if err != nil {
 			slog.Error(err.Error())
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"status":  false,
-				"message": "Something went wrong",
-			})
+			WriteError(c, http.StatusInternalServerError, "Something went wrong!")
 			return
 		}
 
 		var total int64
 		total, err = repository.GetLinksTotalCount(pool)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"status":  false,
-				"message": "Something went wrong!",
-			})
+			WriteError(c, http.StatusInternalServerError, "Something went wrong!")
 			return
 		}
 		var castedLimit = int64(limit)
@@ -186,12 +182,13 @@ func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 }
 
 // @Summary Get link
-// @Description Fetch link by Id
+// @Description Fetch link by id
 // @Tags links
 // @Param id path int true "Link ID"
 // @Produce json
 // @Success 200 {object} GetLinkResponse
 // @Failure 400 {object} map[string]any
+// @Failure 500 {object} map[string]interface{}
 // @Router /links/{id} [get]
 func GetLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -200,10 +197,7 @@ func GetLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		var err error
 		id, err = strconv.ParseInt(idParam, 10, 64) // alternative to int64(id)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"status":  false,
-				"message": "Enter valid id parameter",
-			})
+			WriteError(c, http.StatusBadRequest, "Enter valid id parameter")
 			return
 		}
 
@@ -214,17 +208,10 @@ func GetLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		if err != nil {
 			slog.Error(err.Error())
 			if errors.Is(err, pgx.ErrNoRows) {
-				c.JSON(http.StatusNotFound, gin.H{
-					"status":  false,
-					"message": "URL record not found.",
-				})
+				WriteError(c, http.StatusNotFound, "URL record not found.")
 				return
 			}
-			c.JSON(http.StatusInternalServerError,
-				gin.H{
-					"status":  false,
-					"message": "Something went wrong!",
-				})
+			WriteError(c, http.StatusInternalServerError, "Something went wrong!")
 			return
 		}
 
@@ -233,5 +220,41 @@ func GetLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			"message": "Records fetched successfully!",
 			"data":    link,
 		})
+	}
+}
+
+// @Summary Delete link
+// @Description Delete link by id
+// @Tags links
+// @Param id path int true "Link ID"
+// Produce json
+// @Success 204 "No Content"
+// @Failure 404 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /links/{id} [delete]
+func DeleteLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var err error
+		var id int64
+		var idString = c.Param("id")
+		id, err = strconv.ParseInt(idString, 10, 64)
+		if err != nil {
+			WriteError(c, http.StatusBadRequest, "Enter a valid id parameter")
+			return
+		}
+
+		err = repository.DeleteLink(pool, id)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				WriteError(c, http.StatusNotFound, "Link not found")
+				return
+			}
+			WriteError(c, http.StatusInternalServerError, "Something wrong!")
+			return
+		}
+
+		c.Status(http.StatusNoContent)
+
 	}
 }
