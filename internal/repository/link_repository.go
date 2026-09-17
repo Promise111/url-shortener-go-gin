@@ -97,6 +97,7 @@ func GetLinks(pool *pgxpool.Pool, page int, limit int) ([]model.Link, error) {
 	var query string = `
 	SELECT * 
 	FROM links 
+	WHERE expires_at IS NULL OR expires_at > NOW()
 	ORDER BY created_at DESC
 	LIMIT $1 OFFSET $2
 	`
