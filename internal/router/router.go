@@ -29,6 +29,7 @@ func Router(pool *pgxpool.Pool, cfg *config.Config) *gin.Engine {
 		link.GET("", handler.GetLinksHandler(pool))
 		link.GET("/:id", handler.GetLinkByIDHandler(pool))
 		link.DELETE("/:id", handler.DeleteLinkByIDHandler(pool))
+		link.PATCH("/:id", handler.UpdateLinksByIdHnadler(pool))
 	}
 
 	return r

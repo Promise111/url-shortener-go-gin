@@ -223,6 +223,66 @@ const docTemplate = `{
                         }
                     }
                 }
+            },
+            "patch": {
+                "description": "Update link by id",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "links"
+                ],
+                "summary": "Update link",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Link id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Fields to update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.UpdateLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.UpdateLinkResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
             }
         }
     },
@@ -237,7 +297,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "long_url": {
-                    "type": "string"
+                    "type": "string",
+                    "maxLength": 20448
                 }
             }
         },
@@ -335,6 +396,34 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "example": "2026-09-11T00:00:00Z"
+                }
+            }
+        },
+        "handler.UpdateLinkRequest": {
+            "type": "object",
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "long_url": {
+                    "type": "string",
+                    "maxLength": 2048
+                }
+            }
+        },
+        "handler.UpdateLinkResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/handler.LinkSample"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Link updated successfully!"
+                },
+                "status": {
+                    "type": "boolean",
+                    "example": true
                 }
             }
         }

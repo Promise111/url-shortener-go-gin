@@ -18,7 +18,7 @@ import (
 var ErrExpiresAtInPast = errors.New("expires_at must be in the future")
 
 type CreateLinkRequest struct {
-	LongURL   string     `json:"long_url" binding:"required,url"`
+	LongURL   string     `json:"long_url" binding:"required,url,max=20448"`
 	ExpiresAt *time.Time `json:"expires_at"`
 }
 
@@ -27,6 +27,22 @@ func (r CreateLinkRequest) ValidateExpiresAt() error {
 		return nil
 	}
 	if !r.ExpiresAt.After(time.Now().UTC()) {
+		return ErrExpiresAtInPast
+	}
+	return nil
+}
+
+type UpdateLinkRequest struct {
+	LongURL   *string    `json:"long_url" binding:"omitempty,url,max=2048"`
+	ExpiresAt *time.Time `json:"expires_at"`
+}
+
+func (r UpdateLinkRequest) ValidateExpiresAt() error {
+	if r.ExpiresAt == nil {
+		return nil
+	}
+	var now = time.Now().UTC()
+	if !r.ExpiresAt.After(now) {
 		return ErrExpiresAtInPast
 	}
 	return nil
@@ -45,6 +61,12 @@ type LinkSample struct {
 type CreateLinkResponse struct {
 	Status  bool       `json:"status" example:"true"`
 	Message string     `json:"message" example:"Link created successfully!"`
+	Data    LinkSample `json:"data"`
+}
+
+type UpdateLinkResponse struct {
+	Status  bool       `json:"status" example:"true"`
+	Message string     `json:"message" example:"Link updated successfully!"`
 	Data    LinkSample `json:"data"`
 }
 
@@ -75,18 +97,12 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		var CreateLinkReq CreateLinkRequest
 		var err error
 		if err = c.ShouldBindJSON(&CreateLinkReq); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"status":  false,
-				"message": err.Error(),
-			})
+			WriteError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
 		if err = CreateLinkReq.ValidateExpiresAt(); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"status":  false,
-				"message": "expires_at must be in the future.",
-			})
+			WriteError(c, http.StatusBadRequest, err.Error())
 			return
 		}
 
@@ -237,8 +253,8 @@ func DeleteLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var err error
 		var id int64
-		var idString = c.Param("id")
-		id, err = strconv.ParseInt(idString, 10, 64)
+		var idParam = c.Param("id")
+		id, err = strconv.ParseInt(idParam, 10, 64)
 		if err != nil {
 			WriteError(c, http.StatusBadRequest, "Enter a valid id parameter")
 			return
@@ -256,5 +272,77 @@ func DeleteLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 
 		c.Status(http.StatusNoContent)
 
+	}
+}
+
+// @Summary Update link
+// @Description Update link by id
+// @Tags links
+// @Param id path int true "Link id"
+// @Param request body UpdateLinkRequest true "Fields to update"
+// @Accept json
+// @Produce json
+// @Success 200 {object} UpdateLinkResponse
+// @Failure 404 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /links/{id} [patch]
+func UpdateLinksByIdHnadler(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var id int64
+		var err error
+		idParam := c.Param("id")
+		id, err = strconv.ParseInt(idParam, 10, 64)
+		if err != nil {
+			WriteError(c, http.StatusBadRequest, "Enter valid id param")
+			return
+		}
+
+		var link *model.Link
+		link, err = repository.GetLinkByID(pool, id)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				WriteError(c, http.StatusNotFound, "Link not found")
+				return
+			}
+			WriteError(c, http.StatusInternalServerError, "Something went wrong!")
+			return
+		}
+
+		var req UpdateLinkRequest
+		if err = c.ShouldBindJSON(&req); err != nil {
+			WriteError(c, http.StatusBadRequest, err.Error())
+			return
+		}
+		if err = req.ValidateExpiresAt(); err != nil {
+			WriteError(c, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		if req.LongURL == nil && req.ExpiresAt == nil {
+			WriteError(c, http.StatusBadRequest, "Expected at least one of long_url or expires_at")
+			return
+		}
+
+		var longURL string = link.LongURL
+		var expiresAt *time.Time = link.ExpiresAt
+		if req.LongURL != nil {
+			longURL = *req.LongURL
+		}
+		if req.ExpiresAt != nil {
+			expiresAt = req.ExpiresAt
+		}
+
+		link, err = repository.UpdateLinks(pool, longURL, expiresAt, id)
+		if err != nil {
+			WriteError(c, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Link updated successfully!",
+			"data":    link,
+		})
 	}
 }

@@ -135,7 +135,7 @@ func GetLinks(pool *pgxpool.Pool, page int, limit int) ([]model.Link, error) {
 	return links, nil
 }
 
-func UpdateLinks(pool *pgxpool.Pool, longURL string, shortCode string, expiredAt *time.Time, id string) (*model.Link, error) {
+func UpdateLinks(pool *pgxpool.Pool, longURL string, expiresAt *time.Time, id int64) (*model.Link, error) {
 	var ctx context.Context
 	var cancel context.CancelFunc
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
@@ -143,13 +143,13 @@ func UpdateLinks(pool *pgxpool.Pool, longURL string, shortCode string, expiredAt
 
 	var query string = `
 	UPDATE links 
-	SET long_url = $1, short_code = $2, expires_at = $3 
-	WHERE id = $4 
+	SET long_url = $1, expires_at = $2 
+	WHERE id = $3 
 	RETURNING id, long_url, short_code, expires_at, created_at, updated_at;
 	`
 	var link model.Link
 
-	var err error = pool.QueryRow(ctx, query, longURL, shortCode, expiredAt, id).Scan(
+	var err error = pool.QueryRow(ctx, query, longURL, expiresAt, id).Scan(
 		&link.ID,
 		&link.LongURL,
 		&link.ShortCode,
