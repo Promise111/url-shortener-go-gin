@@ -170,7 +170,7 @@ func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		if total == 0 {
 			totalPage = 0
 		} else {
-			totalPage = (total + castedLimit) / castedLimit
+			totalPage = (total + castedLimit - 1) / castedLimit
 		}
 
 		c.JSON(http.StatusOK, gin.H{
