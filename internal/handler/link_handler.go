@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -16,6 +17,27 @@ import (
 )
 
 var ErrExpiresAtInPast = errors.New("expires_at must be in the future")
+
+type OptionalExpiresAt struct {
+	Present bool
+	Time    *time.Time
+}
+
+func (o *OptionalExpiresAt) UnmarshalJSON(b []byte) error {
+	o.Present = true
+	if string(b) == "null" {
+		o.Time = nil
+		return nil
+	}
+
+	var t time.Time
+	if err := json.Unmarshal(b, &t); err != nil {
+		return err
+	}
+
+	o.Time = &t
+	return nil
+}
 
 type CreateLinkRequest struct {
 	LongURL   string     `json:"long_url" binding:"required,url,max=20448"`
@@ -33,16 +55,16 @@ func (r CreateLinkRequest) ValidateExpiresAt() error {
 }
 
 type UpdateLinkRequest struct {
-	LongURL   *string    `json:"long_url" binding:"omitempty,url,max=2048"`
-	ExpiresAt *time.Time `json:"expires_at"`
+	LongURL   *string           `json:"long_url" binding:"omitempty,url,max=2048"`
+	ExpiresAt OptionalExpiresAt `json:"expires_at"`
 }
 
 func (r UpdateLinkRequest) ValidateExpiresAt() error {
-	if r.ExpiresAt == nil {
+	if !r.ExpiresAt.Present || r.ExpiresAt.Time == nil {
 		return nil
 	}
 	var now = time.Now().UTC()
-	if !r.ExpiresAt.After(now) {
+	if !r.ExpiresAt.Time.After(now) {
 		return ErrExpiresAtInPast
 	}
 	return nil
@@ -319,7 +341,7 @@ func UpdateLinksByIdHnadler(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		if req.LongURL == nil && req.ExpiresAt == nil {
+		if req.LongURL == nil && !req.ExpiresAt.Present {
 			WriteError(c, http.StatusBadRequest, "Expected at least one of long_url or expires_at")
 			return
 		}
@@ -329,8 +351,8 @@ func UpdateLinksByIdHnadler(pool *pgxpool.Pool) gin.HandlerFunc {
 		if req.LongURL != nil {
 			longURL = *req.LongURL
 		}
-		if req.ExpiresAt != nil {
-			expiresAt = req.ExpiresAt
+		if req.ExpiresAt.Present {
+			expiresAt = req.ExpiresAt.Time
 		}
 
 		link, err = repository.UpdateLinks(pool, longURL, expiresAt, id)
