@@ -1,11 +1,11 @@
-package util
+package shortcode
 
 import (
 	"crypto/rand"
 	"fmt"
 )
 
-func GenerateShortCode(len int) (string, error) {
+func Generate(len int) (string, error) {
 	b := make([]byte, len)
 	_, err := rand.Read(b)
 	if err != nil {

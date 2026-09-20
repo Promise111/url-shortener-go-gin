@@ -78,17 +78,12 @@ definitions:
         example: "2026-09-11T00:00:00Z"
         type: string
     type: object
-  handler.OptionalExpiresAt:
-    properties:
-      present:
-        type: boolean
-      time:
-        type: string
-    type: object
   handler.UpdateLinkRequest:
     properties:
       expires_at:
-        $ref: '#/definitions/handler.OptionalExpiresAt'
+        example: "2027-08-08T10:58:29Z"
+        format: date-time
+        type: string
       long_url:
         maxLength: 2048
         type: string

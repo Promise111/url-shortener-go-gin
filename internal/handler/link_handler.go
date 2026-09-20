@@ -11,7 +11,7 @@ import (
 
 	"github.com/Promise111/url-shortener-go-gin/internal/model"
 	"github.com/Promise111/url-shortener-go-gin/internal/repository"
-	"github.com/Promise111/url-shortener-go-gin/internal/util"
+	"github.com/Promise111/url-shortener-go-gin/internal/shortcode"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -68,7 +68,7 @@ func (r CreateLinkRequest) ValidateExpiresAt() error {
 
 type UpdateLinkRequest struct {
 	LongURL   *string           `json:"long_url" binding:"omitempty,url,max=2048"`
-	ExpiresAt OptionalExpiresAt `json:"expires_at"`
+	ExpiresAt OptionalExpiresAt `json:"expires_at" swaggertype:"string" format:"date-time" example:"2027-08-08T10:58:29Z"`
 }
 
 func (r UpdateLinkRequest) ValidateExpiresAt() error {
@@ -142,7 +142,7 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 
 		var link *model.Link
 
-		shortCode, shortCodeGenErr := util.GenerateShortCode(10)
+		shortCode, shortCodeGenErr := shortcode.Generate(10)
 		if shortCodeGenErr != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  false,
