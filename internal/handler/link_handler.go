@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Promise111/url-shortener-go-gin/internal/model"
@@ -26,6 +27,17 @@ type OptionalExpiresAt struct {
 func (o *OptionalExpiresAt) UnmarshalJSON(b []byte) error {
 	o.Present = true
 	if string(b) == "null" {
+		o.Time = nil
+		return nil
+	}
+
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+
+	// treat "" and " " as null
+	if strings.TrimSpace(s) == "" || strings.TrimSpace(s) == " " {
 		o.Time = nil
 		return nil
 	}
@@ -113,7 +125,7 @@ type GetLinkResponse struct {
 // @Success 201 {object} CreateLinkResponse
 // @Failure 400 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
-// @Router /links [post]
+// @Router /api/v1/links [post]
 func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var CreateLinkReq CreateLinkRequest
@@ -165,7 +177,7 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Success 200 {object} []GetLinksResponse
 // @Failure 400 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
-// @Router /links [get]
+// @Router /api/v1/links [get]
 func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var limit int = 10
@@ -227,7 +239,7 @@ func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Success 200 {object} GetLinkResponse
 // @Failure 400 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
-// @Router /links/{id} [get]
+// @Router /api/v1/links/{id} [get]
 func GetLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		idParam := c.Param("id")
@@ -270,7 +282,7 @@ func GetLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Failure 404 {object} map[string]interface{}
 // @Failure 400 {object} map[string]interface{}
 // @Failure 500 {object} map[string]interface{}
-// @Router /links/{id} [delete]
+// @Router /api/v1/links/{id} [delete]
 func DeleteLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var err error
@@ -308,8 +320,8 @@ func DeleteLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Failure 404 {object} map[string]interface{}
 // @Failure 400 {object} map[string]interface{}
 // @Failure 500 {object} map[string]interface{}
-// @Router /links/{id} [patch]
-func UpdateLinksByIdHnadler(pool *pgxpool.Pool) gin.HandlerFunc {
+// @Router /api/v1/links/{id} [patch]
+func UpdateLinksByIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var id int64
 		var err error

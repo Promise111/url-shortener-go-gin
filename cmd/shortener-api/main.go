@@ -24,7 +24,7 @@ import (
 //	@license.url	https://opensource.org/licenses/MIT
 
 // @host		localhost:8003
-// @BasePath	/api/v1
+// @BasePath	/
 // @schemes	http
 func main() {
 	slog.Info("🚀 Shortener API Server Started!")
@@ -43,7 +43,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	docs.SwaggerInfo.BasePath = router.APIPrefix
+	docs.SwaggerInfo.BasePath = "/"
 	docs.SwaggerInfo.Host = "localhost:" + cfg.Port
 	docs.SwaggerInfo.Schemes = []string{"http"}
 

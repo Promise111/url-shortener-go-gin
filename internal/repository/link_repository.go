@@ -187,3 +187,31 @@ func DeleteLink(pool *pgxpool.Pool, id int64) error {
 
 	return nil
 }
+
+func GetLinkByShortCode(pool *pgxpool.Pool, shortCode string) (*model.Link, error) {
+	var ctx context.Context
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var err error
+	var link model.Link
+	var query string = `
+	SELECT * FROM links 
+	WHERE short_code = $1;
+	`
+	err = pool.QueryRow(ctx, query, shortCode).Scan(
+		&link.ID,
+		&link.LongURL,
+		&link.ShortCode,
+		&link.ExpiresAt,
+		&link.Clicks,
+		&link.CreatedAt,
+		&link.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &link, nil
+}

@@ -22,7 +22,7 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/health": {
+        "/api/v1/health": {
             "get": {
                 "description": "Returns the health status of the shortener API.",
                 "produces": [
@@ -43,7 +43,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/links": {
+        "/api/v1/links": {
             "get": {
                 "description": "Fetch all links record",
                 "produces": [
@@ -140,7 +140,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/links/{id}": {
+        "/api/v1/links/{id}": {
             "get": {
                 "description": "Fetch link by id",
                 "produces": [
@@ -284,6 +284,55 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/{shortCode}": {
+            "get": {
+                "description": "Redirect the client to the original long URL",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "links"
+                ],
+                "summary": "Redirect by short code",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Short code",
+                        "name": "shortCode",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "307": {
+                        "description": "Temporary redirect to the long URL",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "headers": {
+                            "Location": {
+                                "type": "string",
+                                "description": "Destination long URL"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -399,11 +448,22 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.OptionalExpiresAt": {
+            "type": "object",
+            "properties": {
+                "present": {
+                    "type": "boolean"
+                },
+                "time": {
+                    "type": "string"
+                }
+            }
+        },
         "handler.UpdateLinkRequest": {
             "type": "object",
             "properties": {
                 "expires_at": {
-                    "type": "string"
+                    "$ref": "#/definitions/handler.OptionalExpiresAt"
                 },
                 "long_url": {
                     "type": "string",
@@ -434,7 +494,7 @@ const docTemplate = `{
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
 	Host:             "localhost:8003",
-	BasePath:         "/api/v1",
+	BasePath:         "/",
 	Schemes:          []string{"http"},
 	Title:            "URL Shortener",
 	Description:      "API for creating and resolving shortened URLs.",

@@ -1,4 +1,4 @@
-basePath: /api/v1
+basePath: /
 definitions:
   handler.CreateLinkRequest:
     properties:
@@ -78,10 +78,17 @@ definitions:
         example: "2026-09-11T00:00:00Z"
         type: string
     type: object
+  handler.OptionalExpiresAt:
+    properties:
+      present:
+        type: boolean
+      time:
+        type: string
+    type: object
   handler.UpdateLinkRequest:
     properties:
       expires_at:
-        type: string
+        $ref: '#/definitions/handler.OptionalExpiresAt'
       long_url:
         maxLength: 2048
         type: string
@@ -109,7 +116,40 @@ info:
   title: URL Shortener
   version: "1.0"
 paths:
-  /health:
+  /{shortCode}:
+    get:
+      description: Redirect the client to the original long URL
+      parameters:
+      - description: Short code
+        in: path
+        name: shortCode
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "307":
+          description: Temporary redirect to the long URL
+          headers:
+            Location:
+              description: Destination long URL
+              type: string
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Redirect by short code
+      tags:
+      - links
+  /api/v1/health:
     get:
       description: Returns the health status of the shortener API.
       operationId: healthCheck
@@ -123,7 +163,7 @@ paths:
       summary: Health check
       tags:
       - health
-  /links:
+  /api/v1/links:
     get:
       description: Fetch all links record
       parameters:
@@ -188,7 +228,7 @@ paths:
       summary: Shorten URL
       tags:
       - links
-  /links/{id}:
+  /api/v1/links/{id}:
     delete:
       description: Delete link by id
       parameters:
