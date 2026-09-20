@@ -1,7 +1,14 @@
 package handler
 
 import (
+	"errors"
+	"net/http"
+
+	"github.com/Promise111/url-shortener-go-gin/internal/model"
+	"github.com/Promise111/url-shortener-go-gin/internal/repository"
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // @Summary Redirect by short code
@@ -22,7 +29,6 @@ func RedirectShortCodeHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		link, err = repository.GetLinkByShortCode(pool, shortCode)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				slog.Info("got here", "code", link)
 				WriteError(c, http.StatusNotFound, "Link record not found.")
 				return
 			}
