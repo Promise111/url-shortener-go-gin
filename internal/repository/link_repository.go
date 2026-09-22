@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Promise111/url-shortener-go-gin/internal/model"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -182,7 +183,7 @@ func DeleteLink(pool *pgxpool.Pool, id int64) error {
 	}
 
 	if cmdTag.RowsAffected() == 0 {
-		return nil
+		return pgx.ErrNoRows
 	}
 
 	return nil
@@ -214,4 +215,29 @@ func GetLinkByShortCode(pool *pgxpool.Pool, shortCode string) (*model.Link, erro
 	}
 
 	return &link, nil
+}
+
+func IncrementClickCount(pool *pgxpool.Pool, shortCode string) error {
+	var ctx context.Context
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var query string = `
+	UPDATE links 
+	SET clicks = clicks + 1 
+	WHERE short_code = $1 
+	AND (expires_at IS NULL OR expires_at > NOW());
+	`
+
+	var cmdTag, err = pool.Exec(ctx, query, shortCode)
+	if err != nil {
+		return err
+	}
+
+	if cmdTag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+
+	return nil
 }

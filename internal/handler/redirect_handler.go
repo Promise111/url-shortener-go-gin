@@ -35,6 +35,11 @@ func RedirectShortCodeHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			WriteError(c, http.StatusInternalServerError, "Something went wrong!")
 			return
 		}
+		err = repository.IncrementClickCount(pool, shortCode)
+		if err != nil {
+			WriteError(c, http.StatusInternalServerError, "Something went wrong!")
+			return
+		}
 
 		c.Redirect(http.StatusTemporaryRedirect, link.LongURL)
 	}

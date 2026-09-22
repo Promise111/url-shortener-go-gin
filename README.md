@@ -12,7 +12,7 @@ Stack: **Go**, **Gin**, **PostgreSQL** (`pgx` pool), **Swag** for OpenAPI, **Air
 - Health check
 - Swagger UI at `/swagger/index.html`
 
-Not implemented yet: auth (`JWT_SECRET` is loaded but unused), click counting on redirect, expiry checks on redirect, short-code collision retries.
+Not implemented yet: auth (`JWT_SECRET` is loaded but unused), skip redirect when the link is expired (lookup does not filter `expires_at`; increment does), short-code collision retries.
 
 ## Why two kinds of URL
 
@@ -44,7 +44,7 @@ internal/
   model/               # Link struct
   repository/          # SQL
   router/              # Gin routes
-  util/                # short-code generator
+  shortcode/           # random hex short-code generator
 migrations/            # Postgres DDL
 ```
 
@@ -95,21 +95,47 @@ API base (default port): `http://localhost:8003`
 
 ## HTTP API
 
-JSON envelope for most success/error bodies:
+Base URL (default): `http://localhost:8003`
+
+No authentication. Send JSON as `Content-Type: application/json`. Interactive docs: `/swagger/index.html`.
+
+### Conventions
+
+Success (except delete and redirect):
 
 ```json
 { "status": true, "message": "...", "data": {} }
 ```
 
-Errors use `"status": false`. Delete success is **204** with an empty body.
+Error:
 
-### Health
+```json
+{ "status": false, "message": "..." }
+```
 
-`GET /api/v1/health`
+`expires_at` is RFC3339 (example `2027-04-08T00:00:00Z`). Create uses `*time.Time` (RFC3339 or omit/`null`). PATCH also accepts JSON `null` / blank strings to clear expiry.
 
-### Links (CRUD)
+| Method | Path | Action |
+|---|---|---|
+| GET | `/api/v1/health` | Health |
+| POST | `/api/v1/links` | Create |
+| GET | `/api/v1/links` | List (paginated) |
+| GET | `/api/v1/links/{id}` | Get by id |
+| PATCH | `/api/v1/links/{id}` | Update |
+| DELETE | `/api/v1/links/{id}` | Delete |
+| GET | `/{shortCode}` | Public redirect |
 
-`POST /api/v1/links`
+### `GET /api/v1/health`
+
+**200**
+
+```json
+{ "status": true, "message": "💪 Shortener API is up and running!" }
+```
+
+### `POST /api/v1/links`
+
+Create a short link. `long_url` required (`url`, max 2048). `expires_at` optional; if set, must be in the future.
 
 ```json
 {
@@ -118,43 +144,85 @@ Errors use `"status": false`. Delete success is **204** with an empty body.
 }
 ```
 
-`expires_at` is optional. Omit it or send JSON `null` to create a link with no expiry. `long_url` is required.
+**201** — `data` is the link (`id`, `long_url`, `short_code`, `expires_at`, `clicks`, `created_at`, `updated_at`).  
+**400** — validation. **500** — server/DB.
 
-`GET /api/v1/links?page=1&limit=10`
+Share `http://localhost:8003/{short_code}` using `data.short_code`.
 
-Default page `1`, limit `10`, max limit `100`. Response also includes `total`, `totalPage`, `page`, `limit`.
+### `GET /api/v1/links`
 
-`GET /api/v1/links/{id}`
+Query (all optional):
 
-`PATCH /api/v1/links/{id}` — send at least one of `long_url` or `expires_at`.
+| Name | Default | Notes |
+|---|---|---|
+| `page` | `1` | Must be > 0 or the default is kept |
+| `limit` | `10` | Capped at `100` |
 
-To **clear** expiry on update, send `expires_at` as JSON `null`, `""`, or `" "` (whitespace-only strings count as null). Omit `expires_at` entirely to leave the stored value unchanged.
+Lists non-expired rows (`expires_at IS NULL OR expires_at > NOW()`), newest first.
+
+**200**
+
+```json
+{
+  "status": true,
+  "message": "Links fetched successfully!",
+  "data": [],
+  "total": 0,
+  "totalPage": 0,
+  "page": 1,
+  "limit": 10
+}
+```
+
+**500** — server/DB.
+
+### `GET /api/v1/links/{id}`
+
+`id` is a numeric path param (`int64`).
+
+**200** — `{ status, message, data }` with one link.  
+**400** — `id` not an integer. **404** — no row. **500** — server/DB.
+
+### `PATCH /api/v1/links/{id}`
+
+JSON **body is required**. At least one of `long_url` or `expires_at` must be present (`expires_at` counts as present even when `null`).
+
+```json
+{ "long_url": "https://example.com/new" }
+```
+
+Clear expiry (same endpoint):
 
 ```json
 { "expires_at": null }
-{ "expires_at": "" }
-{ "expires_at": " " }
 ```
 
-`DELETE /api/v1/links/{id}` — **204** if the row existed.
+`""` and whitespace-only strings are treated as null. **Omit** `expires_at` to leave the stored value unchanged.
 
-### Public redirect
+**200** — updated link in `data`.  
+**400** — bad id, bind/validation, or empty patch. **404**. **500**.
 
-`GET /{shortCode}`
+### `DELETE /api/v1/links/{id}`
 
-Looks up `short_code`, then `307` with `Location` set to `long_url`. Missing code → **404**.
+**204** — empty body (success).  
+**400** — bad id. **404** — if the repository reports no row. **500**.
 
-Create a link, copy `data.short_code`, then visit:
+### `GET /{shortCode}`
+
+Public. Not under `/api/v1`. Gin param name is `shortCode`.
+
+**307** — `Location` is `long_url`. Then increments `clicks` (`clicks = clicks + 1` where the code exists and is not expired).  
+**404** — unknown `short_code`. **500**.
+
+Lookup does **not** currently filter expiry, so an expired code can still redirect; the increment `WHERE` will not bump `clicks` for expired rows.
 
 ```text
 http://localhost:8003/{short_code}
 ```
 
-Param names must match: route `/:shortCode`, handler `c.Param("shortCode")`.
-
 ## Short codes
 
-`util.GenerateShortCode(n)` reads `n` random bytes and hex-encodes them (`%x`). Each byte becomes two characters, so `GenerateShortCode(10)` is **20 hex characters** (`0-9a-f`). The `links.short_code` column is `VARCHAR(64)`.
+`shortcode.Generate(n)` reads `n` random bytes and hex-encodes them (`%x`). Each byte becomes two characters, so `Generate(10)` is **20 hex characters** (`0-9a-f`). The `links.short_code` column is `VARCHAR(64)`.
 
 There is no retry yet if Postgres rejects a duplicate `short_code`.
 
@@ -202,7 +270,7 @@ Table `links`:
 | `long_url` | non-empty, max 2048 chars |
 | `short_code` | unique, non-empty, max 64 |
 | `expires_at` | nullable timestamptz |
-| `clicks` | default 0 (not incremented on redirect yet) |
+| `clicks` | default 0; incremented on public redirect when the row is not expired |
 | `created_at` / `updated_at` | default `NOW()` |
 
 Indexes (migration `000002`): `expires_at` (partial, non-null), `clicks`, `created_at DESC`.
