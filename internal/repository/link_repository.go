@@ -199,7 +199,8 @@ func GetLinkByShortCode(pool *pgxpool.Pool, shortCode string) (*model.Link, erro
 	var link model.Link
 	var query string = `
 	SELECT * FROM links 
-	WHERE short_code = $1;
+	WHERE short_code = $1 
+	AND (expires_at IS NULL OR expires_at > NOW());
 	`
 	err = pool.QueryRow(ctx, query, shortCode).Scan(
 		&link.ID,
