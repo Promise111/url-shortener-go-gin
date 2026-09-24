@@ -145,6 +145,7 @@ func UpdateLinks(pool *pgxpool.Pool, longURL string, expiresAt *time.Time, id in
 		&link.LongURL,
 		&link.ShortCode,
 		&link.ExpiresAt,
+		&link.Clicks,
 		&link.CreatedAt,
 		&link.UpdatedAt,
 	)
