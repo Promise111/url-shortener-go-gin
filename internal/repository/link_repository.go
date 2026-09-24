@@ -4,12 +4,13 @@ import (
 	"time"
 
 	"github.com/Promise111/url-shortener-go-gin/internal/model"
+	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func CreateLink(pool *pgxpool.Pool, longURL string, shortCode string, expiresAt *time.Time) (*model.Link, error) {
-	ctx, cancel := CtxTimeout()
+func CreateLink(c *gin.Context, pool *pgxpool.Pool, longURL string, shortCode string, expiresAt *time.Time) (*model.Link, error) {
+	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
 	var query string = `
@@ -37,8 +38,8 @@ func CreateLink(pool *pgxpool.Pool, longURL string, shortCode string, expiresAt 
 	return &link, nil
 }
 
-func GetLinkByID(pool *pgxpool.Pool, id int64) (*model.Link, error) {
-	ctx, cancel := CtxTimeout()
+func GetLinkByID(c *gin.Context, pool *pgxpool.Pool, id int64) (*model.Link, error) {
+	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
 	var query string = `
@@ -65,8 +66,8 @@ func GetLinkByID(pool *pgxpool.Pool, id int64) (*model.Link, error) {
 	return &link, nil
 }
 
-func GetLinksTotalCount(pool *pgxpool.Pool) (int64, error) {
-	ctx, cancel := CtxTimeout()
+func GetLinksTotalCount(c *gin.Context, pool *pgxpool.Pool) (int64, error) {
+	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
 	var query string = `
@@ -82,8 +83,8 @@ func GetLinksTotalCount(pool *pgxpool.Pool) (int64, error) {
 	return total, nil
 }
 
-func GetLinks(pool *pgxpool.Pool, page int, limit int) ([]model.Link, error) {
-	ctx, cancel := CtxTimeout()
+func GetLinks(c *gin.Context, pool *pgxpool.Pool, page int, limit int) ([]model.Link, error) {
+	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
 	var offset = (page - 1) * limit
@@ -128,8 +129,8 @@ func GetLinks(pool *pgxpool.Pool, page int, limit int) ([]model.Link, error) {
 	return links, nil
 }
 
-func UpdateLinks(pool *pgxpool.Pool, longURL string, expiresAt *time.Time, id int64) (*model.Link, error) {
-	ctx, cancel := CtxTimeout()
+func UpdateLinks(c *gin.Context, pool *pgxpool.Pool, longURL string, expiresAt *time.Time, id int64) (*model.Link, error) {
+	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
 	var query string = `
@@ -157,8 +158,8 @@ func UpdateLinks(pool *pgxpool.Pool, longURL string, expiresAt *time.Time, id in
 	return &link, nil
 }
 
-func DeleteLink(pool *pgxpool.Pool, id int64) error {
-	ctx, cancel := CtxTimeout()
+func DeleteLink(c *gin.Context, pool *pgxpool.Pool, id int64) error {
+	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
 	var query string = `
@@ -178,8 +179,8 @@ func DeleteLink(pool *pgxpool.Pool, id int64) error {
 	return nil
 }
 
-func GetLinkByShortCode(pool *pgxpool.Pool, shortCode string) (*model.Link, error) {
-	ctx, cancel := CtxTimeout()
+func GetLinkByShortCode(c *gin.Context, pool *pgxpool.Pool, shortCode string) (*model.Link, error) {
+	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
 	var err error
@@ -206,8 +207,8 @@ func GetLinkByShortCode(pool *pgxpool.Pool, shortCode string) (*model.Link, erro
 	return &link, nil
 }
 
-func IncrementClickCount(pool *pgxpool.Pool, shortCode string) error {
-	ctx, cancel := CtxTimeout()
+func IncrementClickCount(c *gin.Context, pool *pgxpool.Pool, shortCode string) error {
+	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
 	var query string = `

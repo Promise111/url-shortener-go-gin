@@ -149,7 +149,7 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		link, err = repository.CreateLink(pool, CreateLinkReq.LongURL, shortCode, CreateLinkReq.ExpiresAt)
+		link, err = repository.CreateLink(c, pool, CreateLinkReq.LongURL, shortCode, CreateLinkReq.ExpiresAt)
 
 		c.JSON(http.StatusCreated, CreateLinkResponse{
 			Status:  true,
@@ -196,7 +196,7 @@ func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 				page = p
 			}
 		}
-		links, err = repository.GetLinks(pool, page, limit)
+		links, err = repository.GetLinks(c, pool, page, limit)
 		if err != nil {
 			slog.Error(err.Error())
 			WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
@@ -204,7 +204,7 @@ func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		var total int64
-		total, err = repository.GetLinksTotalCount(pool)
+		total, err = repository.GetLinksTotalCount(c, pool)
 		if err != nil {
 			WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
 			return
@@ -252,7 +252,7 @@ func GetLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 
 		var link *model.Link
 
-		link, err = repository.GetLinkByID(pool, id)
+		link, err = repository.GetLinkByID(c, pool, id)
 
 		if err != nil {
 			slog.Error(err.Error())
@@ -293,7 +293,7 @@ func DeleteLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		err = repository.DeleteLink(pool, id)
+		err = repository.DeleteLink(c, pool, id)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				WriteError(c, http.StatusNotFound, "Link not found")
@@ -332,7 +332,7 @@ func UpdateLinksByIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		var link *model.Link
-		link, err = repository.GetLinkByID(pool, id)
+		link, err = repository.GetLinkByID(c, pool, id)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				WriteError(c, http.StatusNotFound, "Link not found")
@@ -366,7 +366,7 @@ func UpdateLinksByIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			expiresAt = req.ExpiresAt.Time
 		}
 
-		link, err = repository.UpdateLinks(pool, longURL, expiresAt, id)
+		link, err = repository.UpdateLinks(c, pool, longURL, expiresAt, id)
 		if err != nil {
 			WriteError(c, http.StatusInternalServerError, err.Error())
 			return

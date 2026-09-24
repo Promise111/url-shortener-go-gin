@@ -26,7 +26,7 @@ func RedirectShortCodeHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		var shortCode string = c.Param("shortCode")
 		var err error
 		var link *model.Link
-		link, err = repository.GetLinkByShortCode(pool, shortCode)
+		link, err = repository.GetLinkByShortCode(c, pool, shortCode)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				WriteError(c, http.StatusNotFound, "Link record not found.")
@@ -35,7 +35,7 @@ func RedirectShortCodeHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			WriteError(c, http.StatusInternalServerError, "Something went wrong!")
 			return
 		}
-		err = repository.IncrementClickCount(pool, shortCode)
+		err = repository.IncrementClickCount(c, pool, shortCode)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				WriteError(c, http.StatusNotFound, "Link record not found.")
