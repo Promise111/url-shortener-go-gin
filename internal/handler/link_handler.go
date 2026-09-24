@@ -18,6 +18,7 @@ import (
 )
 
 var ErrExpiresAtInPast = errors.New("expires_at must be in the future")
+var InternalServerErrorMessage = "Something went wrong!"
 
 type OptionalExpiresAt struct {
 	Present bool
@@ -144,10 +145,8 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 
 		shortCode, shortCodeGenErr := shortcode.Generate(10)
 		if shortCodeGenErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"status":  false,
-				"message": "Something went wrong.",
-			})
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
+			return
 		}
 
 		link, err = repository.CreateLink(pool, CreateLinkReq.LongURL, shortCode, CreateLinkReq.ExpiresAt)
@@ -200,14 +199,14 @@ func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		links, err = repository.GetLinks(pool, page, limit)
 		if err != nil {
 			slog.Error(err.Error())
-			WriteError(c, http.StatusInternalServerError, "Something went wrong!")
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
 			return
 		}
 
 		var total int64
 		total, err = repository.GetLinksTotalCount(pool)
 		if err != nil {
-			WriteError(c, http.StatusInternalServerError, "Something went wrong!")
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
 			return
 		}
 		var castedLimit = int64(limit)
@@ -261,7 +260,7 @@ func GetLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 				WriteError(c, http.StatusNotFound, "URL record not found.")
 				return
 			}
-			WriteError(c, http.StatusInternalServerError, "Something went wrong!")
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
 			return
 		}
 
@@ -300,7 +299,7 @@ func DeleteLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 				WriteError(c, http.StatusNotFound, "Link not found")
 				return
 			}
-			WriteError(c, http.StatusInternalServerError, "Something wrong!")
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
 			return
 		}
 
@@ -339,7 +338,7 @@ func UpdateLinksByIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 				WriteError(c, http.StatusNotFound, "Link not found")
 				return
 			}
-			WriteError(c, http.StatusInternalServerError, "Something went wrong!")
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
 			return
 		}
 
