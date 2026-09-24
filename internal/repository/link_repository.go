@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"time"
 
 	"github.com/Promise111/url-shortener-go-gin/internal/model"
@@ -10,9 +9,7 @@ import (
 )
 
 func CreateLink(pool *pgxpool.Pool, longURL string, shortCode string, expiresAt *time.Time) (*model.Link, error) {
-	var ctx context.Context
-	var cancel context.CancelFunc
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := CtxTimeout()
 	defer cancel()
 
 	var query string = `
@@ -41,13 +38,12 @@ func CreateLink(pool *pgxpool.Pool, longURL string, shortCode string, expiresAt 
 }
 
 func GetLinkByID(pool *pgxpool.Pool, id int64) (*model.Link, error) {
-	var ctx context.Context
-	var cancel context.CancelFunc
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := CtxTimeout()
 	defer cancel()
 
 	var query string = `
-	SELECT * FROM links 
+	SELECT id, long_url, short_code, expires_at, clicks, created_at, updated_at 
+	FROM links 
 	WHERE id = $1;
 	`
 
@@ -70,9 +66,7 @@ func GetLinkByID(pool *pgxpool.Pool, id int64) (*model.Link, error) {
 }
 
 func GetLinksTotalCount(pool *pgxpool.Pool) (int64, error) {
-	var ctx context.Context
-	var cancel context.CancelFunc
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := CtxTimeout()
 	defer cancel()
 
 	var query string = `
@@ -89,14 +83,12 @@ func GetLinksTotalCount(pool *pgxpool.Pool) (int64, error) {
 }
 
 func GetLinks(pool *pgxpool.Pool, page int, limit int) ([]model.Link, error) {
-	var ctx context.Context
-	var cancel context.CancelFunc
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := CtxTimeout()
 	defer cancel()
 
 	var offset = (page - 1) * limit
 	var query string = `
-	SELECT * 
+	SELECT id, long_url, short_code, expires_at, clicks, created_at, updated_at
 	FROM links 
 	WHERE expires_at IS NULL OR expires_at > NOW()
 	ORDER BY created_at DESC
@@ -137,16 +129,14 @@ func GetLinks(pool *pgxpool.Pool, page int, limit int) ([]model.Link, error) {
 }
 
 func UpdateLinks(pool *pgxpool.Pool, longURL string, expiresAt *time.Time, id int64) (*model.Link, error) {
-	var ctx context.Context
-	var cancel context.CancelFunc
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := CtxTimeout()
 	defer cancel()
 
 	var query string = `
 	UPDATE links 
-	SET long_url = $1, expires_at = $2 
+	SET long_url = $1, expires_at = $2, updated_at = NOW()
 	WHERE id = $3 
-	RETURNING id, long_url, short_code, expires_at, created_at, updated_at;
+	RETURNING id, long_url, short_code, expires_at, clicks, created_at, updated_at;
 	`
 	var link model.Link
 
@@ -167,9 +157,7 @@ func UpdateLinks(pool *pgxpool.Pool, longURL string, expiresAt *time.Time, id in
 }
 
 func DeleteLink(pool *pgxpool.Pool, id int64) error {
-	var ctx context.Context
-	var cancel context.CancelFunc
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := CtxTimeout()
 	defer cancel()
 
 	var query string = `
@@ -190,15 +178,14 @@ func DeleteLink(pool *pgxpool.Pool, id int64) error {
 }
 
 func GetLinkByShortCode(pool *pgxpool.Pool, shortCode string) (*model.Link, error) {
-	var ctx context.Context
-	var cancel context.CancelFunc
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := CtxTimeout()
 	defer cancel()
 
 	var err error
 	var link model.Link
 	var query string = `
-	SELECT * FROM links 
+	SELECT id, long_url, short_code, expires_at, clicks, created_at, updated_at 
+	FROM links 
 	WHERE short_code = $1 
 	AND (expires_at IS NULL OR expires_at > NOW());
 	`
@@ -219,9 +206,7 @@ func GetLinkByShortCode(pool *pgxpool.Pool, shortCode string) (*model.Link, erro
 }
 
 func IncrementClickCount(pool *pgxpool.Pool, shortCode string) error {
-	var ctx context.Context
-	var cancel context.CancelFunc
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := CtxTimeout()
 	defer cancel()
 
 	var query string = `

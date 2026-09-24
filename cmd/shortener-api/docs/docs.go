@@ -347,7 +347,7 @@ const docTemplate = `{
                 },
                 "long_url": {
                     "type": "string",
-                    "maxLength": 20448
+                    "maxLength": 2048
                 }
             }
         },

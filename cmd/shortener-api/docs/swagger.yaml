@@ -5,7 +5,7 @@ definitions:
       expires_at:
         type: string
       long_url:
-        maxLength: 20448
+        maxLength: 2048
         type: string
     required:
     - long_url

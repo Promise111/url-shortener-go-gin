@@ -37,7 +37,7 @@ func (o *OptionalExpiresAt) UnmarshalJSON(b []byte) error {
 	}
 
 	// treat "" and " " as null
-	if strings.TrimSpace(s) == "" || strings.TrimSpace(s) == " " {
+	if strings.TrimSpace(s) == "" {
 		o.Time = nil
 		return nil
 	}
@@ -52,7 +52,7 @@ func (o *OptionalExpiresAt) UnmarshalJSON(b []byte) error {
 }
 
 type CreateLinkRequest struct {
-	LongURL   string     `json:"long_url" binding:"required,url,max=20448"`
+	LongURL   string     `json:"long_url" binding:"required,url,max=2048"`
 	ExpiresAt *time.Time `json:"expires_at"`
 }
 
