@@ -106,9 +106,13 @@ type UpdateLinkResponse struct {
 }
 
 type GetLinksResponse struct {
-	Status  bool         `json:"status" example:"true"`
-	Message string       `json:"message" example:"Link created successfully!"`
-	Data    []LinkSample `json:"data"`
+	Status    bool         `json:"status" example:"true"`
+	Message   string       `json:"message" example:"Link created successfully!"`
+	Data      []LinkSample `json:"data"`
+	TotalPage int64        `json:"totalPage" example:"10"`
+	Total     int64        `json:"total" example:"100"`
+	Page      int          `json:"page" example:"1"`
+	Limit     int          `json:"limit" example:"10"`
 }
 
 type GetLinkResponse struct {
@@ -173,7 +177,7 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Produce json
 // @Param limit query string false "limit pagination records"
 // @Param page query string false "specify pagination page"
-// @Success 200 {object} []GetLinksResponse
+// @Success 200 {object} GetLinksResponse
 // @Failure 400 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/links [get]
@@ -276,7 +280,6 @@ func GetLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Description Delete link by id
 // @Tags links
 // @Param id path int true "Link ID"
-// Produce json
 // @Success 204 "No Content"
 // @Failure 404 {object} map[string]interface{}
 // @Failure 400 {object} map[string]interface{}

@@ -38,12 +38,24 @@ definitions:
         items:
           $ref: '#/definitions/handler.LinkSample'
         type: array
+      limit:
+        example: 10
+        type: integer
       message:
         example: Link created successfully!
         type: string
+      page:
+        example: 1
+        type: integer
       status:
         example: true
         type: boolean
+      total:
+        example: 100
+        type: integer
+      totalPage:
+        example: 10
+        type: integer
     type: object
   handler.HealthResponse:
     properties:
@@ -176,9 +188,7 @@ paths:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/handler.GetLinksResponse'
-            type: array
+            $ref: '#/definitions/handler.GetLinksResponse'
         "400":
           description: Bad Request
           schema:

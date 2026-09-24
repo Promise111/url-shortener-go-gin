@@ -71,10 +71,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/handler.GetLinksResponse"
-                            }
+                            "$ref": "#/definitions/handler.GetLinksResponse"
                         }
                     },
                     "400": {
@@ -392,13 +389,29 @@ const docTemplate = `{
                         "$ref": "#/definitions/handler.LinkSample"
                     }
                 },
+                "limit": {
+                    "type": "integer",
+                    "example": 10
+                },
                 "message": {
                     "type": "string",
                     "example": "Link created successfully!"
                 },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
                 "status": {
                     "type": "boolean",
                     "example": true
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 100
+                },
+                "totalPage": {
+                    "type": "integer",
+                    "example": 10
                 }
             }
         },
