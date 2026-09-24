@@ -154,6 +154,10 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		link, err = repository.CreateLink(c, pool, CreateLinkReq.LongURL, shortCode, CreateLinkReq.ExpiresAt)
+		if err != nil {
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
+			return
+		}
 
 		c.JSON(http.StatusCreated, CreateLinkResponse{
 			Status:  true,
