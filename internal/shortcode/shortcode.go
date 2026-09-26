@@ -3,7 +3,6 @@ package shortcode
 import (
 	"crypto/rand"
 	"errors"
-	"fmt"
 )
 
 const alphabets = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -23,5 +22,5 @@ func Generate(n int) (string, error) {
 	for i := range n {
 		out[i] = alphabets[int(b[i])%len(alphabets)]
 	}
-	return fmt.Sprintf("%x", out), nil
+	return string(out), nil
 }
