@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Promise111/url-shortener-go-gin/internal/database"
 	"github.com/Promise111/url-shortener-go-gin/internal/model"
 	"github.com/Promise111/url-shortener-go-gin/internal/repository"
 	"github.com/Promise111/url-shortener-go-gin/internal/shortcode"
@@ -86,7 +87,7 @@ func (r UpdateLinkRequest) ValidateExpiresAt() error {
 type LinkSample struct {
 	ID        int64      `json:"id" example:"1"`
 	LongURL   string     `json:"long_url" example:"https://facebook.com"`
-	ShortCode string     `json:"short_code" example:"1234567890"`
+	ShortCode string     `json:"short_code" example:"6aAwoxoksd"`
 	ExpiresAt *time.Time `json:"expires_at" example:"2027-04-08T00:00:00Z"`
 	Clicks    int64      `json:"clicks" example:"10"`
 	CreatedAt time.Time  `json:"created_at" example:"2026-02-02T00:00:00Z"`
@@ -118,7 +119,7 @@ type GetLinksResponse struct {
 type GetLinkResponse struct {
 	Status  bool   `json:"status" example:"true"`
 	Message string `json:"message" example:"Records fetched successfully!"`
-	Data    LinkSample
+	Data    LinkSample `json:"data"`
 }
 
 // @Summary Shorten URL
@@ -147,13 +148,22 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 
 		var link *model.Link
 
-		shortCode, shortCodeGenErr := shortcode.Generate(10)
-		if shortCodeGenErr != nil {
-			WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
-			return
+		for range 3 {
+			short, shortGenErr := shortcode.Generate(10)
+			if shortGenErr != nil {
+				WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
+				return
+			}
+			link, err = repository.CreateLink(c, pool, CreateLinkReq.LongURL, short, CreateLinkReq.ExpiresAt)
+			if err == nil {
+				break
+			}
+			if !database.IsUniqueViolationErr(err) {
+				WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
+				return
+			}
 		}
 
-		link, err = repository.CreateLink(c, pool, CreateLinkReq.LongURL, shortCode, CreateLinkReq.ExpiresAt)
 		if err != nil {
 			WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
 			return
@@ -161,7 +171,7 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 
 		c.JSON(http.StatusCreated, CreateLinkResponse{
 			Status:  true,
-			Message: "Link created successfuly!",
+			Message: "Link created successfully!",
 			Data: LinkSample{
 				ID:        link.ID,
 				LongURL:   link.LongURL,
@@ -226,14 +236,27 @@ func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			totalPage = (total + castedLimit - 1) / castedLimit
 		}
 
-		c.JSON(http.StatusOK, gin.H{
-			"status":    true,
-			"message":   "Links fetched successfully!",
-			"data":      links,
-			"totalPage": totalPage,
-			"total":     total,
-			"page":      page,
-			"limit":     limit,
+		samples := make([]LinkSample, 0, len(links))
+		for _, link := range links {
+			samples = append(samples, LinkSample{
+				ID:        link.ID,
+				LongURL:   link.LongURL,
+				ShortCode: link.ShortCode,
+				ExpiresAt: link.ExpiresAt,
+				Clicks:    link.Clicks,
+				CreatedAt: link.CreatedAt,
+				UpdatedAt: link.UpdatedAt,
+			})
+		}
+
+		c.JSON(http.StatusOK, GetLinksResponse{
+			Status:    true,
+			Message:   "Links fetched successfully!",
+			Data:      samples,
+			TotalPage: totalPage,
+			Total:     total,
+			Page:      page,
+			Limit:     limit,
 		})
 	}
 }
@@ -272,10 +295,18 @@ func GetLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{
-			"status":  true,
-			"message": "Records fetched successfully!",
-			"data":    link,
+		c.JSON(http.StatusOK, GetLinkResponse{
+			Status:  true,
+			Message: "Records fetched successfully!",
+			Data: LinkSample{
+				ID:        link.ID,
+				LongURL:   link.LongURL,
+				ShortCode: link.ShortCode,
+				ExpiresAt: link.ExpiresAt,
+				Clicks:    link.Clicks,
+				CreatedAt: link.CreatedAt,
+				UpdatedAt: link.UpdatedAt,
+			},
 		})
 	}
 }
@@ -379,10 +410,18 @@ func UpdateLinksByIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{
-			"status":  true,
-			"message": "Link updated successfully!",
-			"data":    link,
+		c.JSON(http.StatusOK, UpdateLinkResponse{
+			Status:  true,
+			Message: "Link updated successfully!",
+			Data: LinkSample{
+				ID:        link.ID,
+				LongURL:   link.LongURL,
+				ShortCode: link.ShortCode,
+				ExpiresAt: link.ExpiresAt,
+				Clicks:    link.Clicks,
+				CreatedAt: link.CreatedAt,
+				UpdatedAt: link.UpdatedAt,
+			},
 		})
 	}
 }
