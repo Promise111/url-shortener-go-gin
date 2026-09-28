@@ -1,15 +1,15 @@
 package repository
 
 import (
+	"context"
 	"time"
 
 	"github.com/Promise111/url-shortener-go-gin/internal/model"
-	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func CreateLink(c *gin.Context, pool *pgxpool.Pool, longURL string, shortCode string, expiresAt *time.Time) (*model.Link, error) {
+func CreateLink(c context.Context, pool *pgxpool.Pool, longURL string, shortCode string, expiresAt *time.Time) (*model.Link, error) {
 	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
@@ -38,7 +38,7 @@ func CreateLink(c *gin.Context, pool *pgxpool.Pool, longURL string, shortCode st
 	return &link, nil
 }
 
-func GetLinkByID(c *gin.Context, pool *pgxpool.Pool, id int64) (*model.Link, error) {
+func GetLinkByID(c context.Context, pool *pgxpool.Pool, id int64) (*model.Link, error) {
 	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
@@ -66,7 +66,7 @@ func GetLinkByID(c *gin.Context, pool *pgxpool.Pool, id int64) (*model.Link, err
 	return &link, nil
 }
 
-func GetLinksTotalCount(c *gin.Context, pool *pgxpool.Pool) (int64, error) {
+func GetLinksTotalCount(c context.Context, pool *pgxpool.Pool) (int64, error) {
 	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
@@ -83,7 +83,7 @@ func GetLinksTotalCount(c *gin.Context, pool *pgxpool.Pool) (int64, error) {
 	return total, nil
 }
 
-func GetLinks(c *gin.Context, pool *pgxpool.Pool, page int, limit int) ([]model.Link, error) {
+func GetLinks(c context.Context, pool *pgxpool.Pool, page int, limit int) ([]model.Link, error) {
 	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
@@ -129,7 +129,7 @@ func GetLinks(c *gin.Context, pool *pgxpool.Pool, page int, limit int) ([]model.
 	return links, nil
 }
 
-func UpdateLinks(c *gin.Context, pool *pgxpool.Pool, longURL string, expiresAt *time.Time, id int64) (*model.Link, error) {
+func UpdateLinks(c context.Context, pool *pgxpool.Pool, longURL string, expiresAt *time.Time, id int64) (*model.Link, error) {
 	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
@@ -158,7 +158,7 @@ func UpdateLinks(c *gin.Context, pool *pgxpool.Pool, longURL string, expiresAt *
 	return &link, nil
 }
 
-func DeleteLink(c *gin.Context, pool *pgxpool.Pool, id int64) error {
+func DeleteLink(c context.Context, pool *pgxpool.Pool, id int64) error {
 	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
@@ -179,7 +179,7 @@ func DeleteLink(c *gin.Context, pool *pgxpool.Pool, id int64) error {
 	return nil
 }
 
-func GetLinkByShortCode(c *gin.Context, pool *pgxpool.Pool, shortCode string) (*model.Link, error) {
+func GetLinkByShortCode(c context.Context, pool *pgxpool.Pool, shortCode string) (*model.Link, error) {
 	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
@@ -207,7 +207,7 @@ func GetLinkByShortCode(c *gin.Context, pool *pgxpool.Pool, shortCode string) (*
 	return &link, nil
 }
 
-func IncrementClickCount(c *gin.Context, pool *pgxpool.Pool, shortCode string) error {
+func IncrementClickCount(c context.Context, pool *pgxpool.Pool, shortCode string) error {
 	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
