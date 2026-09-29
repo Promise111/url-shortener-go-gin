@@ -8,7 +8,7 @@ Stack: **Go**, **Gin**, **PostgreSQL** (`pgx` pool), **Swag** for OpenAPI, **Air
 
 - Create, list, get, update, and delete links under `/api/v1`
 - Optional `expires_at` on create and update (RFC3339 only; a set timestamp must be in the future). On **PATCH**, JSON `null` or a blank string clears expiry; omitting the field leaves it as-is
-- Public redirect: `GET /{shortCode}` → **307 Temporary Redirect**. Expired and unknown codes are **404** (lookup and click increment both require `expires_at IS NULL OR expires_at > NOW()`)
+- Public redirect: `GET /{shortCode}` → **307 Temporary Redirect**. Unknown codes are **404**. Expired codes are **410 Gone**. Clicks increment only after a live row is found (not on 410)
 - Create generates a 10-character base62 code and retries the insert up to **3** times if Postgres reports a unique `short_code` (`23505`)
 - Health check
 - Swagger UI at `/swagger/index.html`
@@ -183,7 +183,7 @@ Lists non-expired rows (`expires_at IS NULL OR expires_at > NOW()`), newest firs
 
 `id` is a numeric path param (`int64`).
 
-**200** — `{ status, message, data }` with one link (expired rows are still returned by id; list and redirect hide them).  
+**200** — `{ status, message, data }` with one link (expired rows are still returned by id; list omits them; public redirect returns **410**).  
 **400** — `id` not an integer. **404** — no row. **500** — server/DB.
 
 ### `PATCH /api/v1/links/{id}`
@@ -214,8 +214,12 @@ Clear expiry (same endpoint):
 
 Public. Not under `/api/v1`. Gin param name is `shortCode`.
 
-**307** — `Location` is `long_url`. Then increments `clicks` (`clicks = clicks + 1` where the code exists and is not expired).  
-**404** — unknown or **expired** `short_code` (same on lookup and on increment if the row expires between the two queries). **500**.
+Lookup is by `short_code` only. Expiry is decided in the handler (`expires_at` in the past, UTC, same rule as create: not strictly after now).
+
+**307** — live link. `Location` is `long_url`. Then `clicks = clicks + 1` for that `short_code` (no expiry `WHERE`; Get already proved the row exists).  
+**404** — no row, or the row was deleted between Get and increment.  
+**410** — row exists but is expired. Clicks are not incremented.  
+**500**.
 
 ```text
 http://localhost:8003/{short_code}
@@ -273,7 +277,7 @@ Table `links`:
 | `long_url` | non-empty, max 2048 chars |
 | `short_code` | unique, non-empty, max 64 |
 | `expires_at` | nullable timestamptz |
-| `clicks` | default 0; incremented on public redirect when the row is not expired |
+| `clicks` | default 0; incremented on a successful public redirect (307), not on 410 |
 | `created_at` / `updated_at` | default `NOW()`; PATCH sets `updated_at = NOW()` |
 
 Indexes (migration `000002`): `expires_at` (partial, non-null), `clicks`, `created_at DESC`.
