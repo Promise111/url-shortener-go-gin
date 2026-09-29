@@ -42,6 +42,7 @@ func main() {
 		slog.Error("Database connection failed " + dbConnErr.Error())
 		os.Exit(1)
 	}
+	defer pool.Close()
 
 	docs.SwaggerInfo.BasePath = "/"
 	docs.SwaggerInfo.Host = "localhost:" + cfg.Port

@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/Promise111/url-shortener-go-gin/internal/model"
 	"github.com/Promise111/url-shortener-go-gin/internal/repository"
@@ -19,6 +20,7 @@ import (
 // @Success 307 {string} string "Temporary redirect to the long URL"
 // @Header 307 {string} Location "Destination long URL"
 // @Failure 404 {object} map[string]interface{}
+// @Failure 410 {object} map[string]interface{}
 // @Failure 500 {object} map[string]interface{}
 // @Router /{shortCode} [get]
 func RedirectShortCodeHandler(pool *pgxpool.Pool) gin.HandlerFunc {
@@ -26,6 +28,7 @@ func RedirectShortCodeHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		var shortCode string = c.Param("shortCode")
 		var err error
 		var link *model.Link
+		var now time.Time = time.Now().UTC()
 		link, err = repository.GetLinkByShortCode(c.Request.Context(), pool, shortCode)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
@@ -33,6 +36,10 @@ func RedirectShortCodeHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 				return
 			}
 			WriteError(c, http.StatusInternalServerError, "Something went wrong!")
+			return
+		}
+		if link.ExpiresAt != nil && !link.ExpiresAt.After(now) {
+			WriteError(c, http.StatusGone, "Link expired!")
 			return
 		}
 		err = repository.IncrementClickCount(c.Request.Context(), pool, shortCode)

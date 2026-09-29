@@ -188,8 +188,7 @@ func GetLinkByShortCode(c context.Context, pool *pgxpool.Pool, shortCode string)
 	var query string = `
 	SELECT id, long_url, short_code, expires_at, clicks, created_at, updated_at 
 	FROM links 
-	WHERE short_code = $1 
-	AND (expires_at IS NULL OR expires_at > NOW());
+	WHERE short_code = $1;
 	`
 	err = pool.QueryRow(ctx, query, shortCode).Scan(
 		&link.ID,
@@ -214,8 +213,7 @@ func IncrementClickCount(c context.Context, pool *pgxpool.Pool, shortCode string
 	var query string = `
 	UPDATE links 
 	SET clicks = clicks + 1 
-	WHERE short_code = $1 
-	AND (expires_at IS NULL OR expires_at > NOW());
+	WHERE short_code = $1;
 	`
 
 	var cmdTag, err = pool.Exec(ctx, query, shortCode)
