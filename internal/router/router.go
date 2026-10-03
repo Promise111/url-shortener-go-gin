@@ -1,10 +1,14 @@
 package router
 
 import (
+	"time"
+
 	"github.com/Promise111/url-shortener-go-gin/internal/config"
 	"github.com/Promise111/url-shortener-go-gin/internal/handler"
+	"github.com/Promise111/url-shortener-go-gin/internal/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -17,6 +21,9 @@ const (
 func Router(pool *pgxpool.Pool, cfg *config.Config) *gin.Engine {
 	var r = gin.Default()
 
+	createLimiter := middleware.NewIPLimiter(rate.Every(6*time.Second), 3)
+	redirectLimiter := middleware.NewIPLimiter(10, 20)
+
 	api := r.Group(APIPrefix)
 
 	{
@@ -25,7 +32,7 @@ func Router(pool *pgxpool.Pool, cfg *config.Config) *gin.Engine {
 
 	{
 		link := api.Group(LinkPrefix)
-		link.POST("", handler.CreateLinkHandler(pool))
+		link.POST("", createLimiter.RateLimiterMiddleware(), handler.CreateLinkHandler(pool))
 		link.GET("", handler.GetLinksHandler(pool))
 		link.GET("/:id", handler.GetLinkByIDHandler(pool))
 		link.DELETE("/:id", handler.DeleteLinkByIDHandler(pool))
@@ -33,7 +40,7 @@ func Router(pool *pgxpool.Pool, cfg *config.Config) *gin.Engine {
 	}
 
 	// public
-	r.GET("/:shortCode", handler.RedirectShortCodeHandler(pool))
+	r.GET("/:shortCode", redirectLimiter.RateLimiterMiddleware(), handler.RedirectShortCodeHandler(pool))
 
 	return r
 }
