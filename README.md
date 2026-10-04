@@ -9,6 +9,7 @@ Stack: **Go**, **Gin**, **PostgreSQL** (`pgx` pool), **Swag** for OpenAPI, **Air
 - Create, list, get, update, and delete links under `/api/v1`
 - Optional `expires_at` on create and update (RFC3339 only; a set timestamp must be in the future). On **PATCH**, JSON `null` or a blank string clears expiry; omitting the field leaves it as-is
 - Public redirect: `GET /{shortCode}` → **307 Temporary Redirect**. Unknown codes are **404**. Expired codes are **410 Gone**. Clicks increment only after a live row is found (not on 410)
+- Per-IP rate limits on **create** and **public redirect** (token bucket). Over limit → **429**
 - Create generates a 10-character base62 code and retries the insert up to **3** times if Postgres reports a unique `short_code` (`23505`)
 - Health check
 - Swagger UI at `/swagger/index.html`
@@ -42,6 +43,7 @@ internal/
     redirect_handler.go
     health_handler.go
     response.go
+  middleware/          # per-IP rate limiter (create + redirect)
   model/               # Link struct
   repository/          # SQL (takes context.Context; 5s timeout on the request ctx)
     ctx_timeout.go
@@ -51,7 +53,7 @@ internal/
 migrations/            # Postgres DDL
 ```
 
-Request flow: **router → handler → repository → Postgres**. Handlers pass `c.Request.Context()`; the repository wraps it with a 5 second timeout so a cancelled HTTP request or a slow query stops SQL.
+Request flow: **router → middleware (create/redirect only) → handler → repository → Postgres**. Handlers pass `c.Request.Context()`; the repository wraps it with a 5 second timeout so a cancelled HTTP request or a slow query stops SQL.
 
 ## Prerequisites
 
@@ -118,6 +120,12 @@ Error:
 
 `expires_at` is **RFC3339 only** (example `2027-04-08T00:00:00Z`). Date-only strings are rejected. Create uses `*time.Time` (RFC3339, or omit/`null`). PATCH also accepts JSON `null` / blank strings to clear expiry.
 
+**429** (create and public redirect only):
+
+```json
+{ "status": false, "message": "Too many requests" }
+```
+
 | Method | Path | Action |
 |---|---|---|
 | GET | `/api/v1/health` | Health |
@@ -148,7 +156,7 @@ Create a short link. `long_url` required (`url`, max 2048). `expires_at` optiona
 ```
 
 **201** — `data` is the link (`id`, `long_url`, `short_code`, `expires_at`, `clicks`, `created_at`, `updated_at`).  
-**400** — validation. **500** — server/DB, including after three unique `short_code` collisions.
+**400** — validation. **429** — per-IP create limit (see Rate limiting). **500** — server/DB, including after three unique `short_code` collisions.
 
 Share `http://localhost:8003/{short_code}` using `data.short_code`.
 
@@ -219,7 +227,7 @@ Lookup is by `short_code` only. Expiry is decided in the handler (`expires_at` i
 **307** — live link. `Location` is `long_url`. Then `clicks = clicks + 1` for that `short_code` (no expiry `WHERE`; Get already proved the row exists).  
 **404** — no row, or the row was deleted between Get and increment.  
 **410** — row exists but is expired. Clicks are not incremented.  
-**500**.
+**429** — per-IP redirect limit (see Rate limiting). **500**.
 
 ```text
 http://localhost:8003/{short_code}
@@ -232,6 +240,19 @@ http://localhost:8003/{short_code}
 `Generate` does not talk to the database. If `INSERT` hits a duplicate `short_code` (Postgres SQLSTATE `23505`), create generates a new code and inserts again, up to **3** attempts. Any other insert error is a **500** immediately. Three collisions in a row is also **500**.
 
 Uniqueness is the unique index, not a `SELECT` before insert.
+
+## Rate limiting
+
+In-memory token buckets (`golang.org/x/time/rate`), **one bucket per client IP** (`c.ClientIP()`). Create and redirect each have their own store and policy. Health, list, get, patch, and delete are **not** limited.
+
+| Route | Refill | Burst |
+|---|---|---|
+| `POST /api/v1/links` | 1 token every 6 seconds (`rate.Every(6s)`) | 3 |
+| `GET /{shortCode}` | 60 tokens per second | 1 |
+
+Over limit → **429** `{ "status": false, "message": "Too many requests" }`. The handler (and Postgres) does not run.
+
+Idle IPs are dropped from the map after **10 minutes** of no hits (janitor every **1 minute**). A returning IP gets a fresh limiter (full burst). Locally, curl and the browser often share `127.0.0.1`, so they share one create bucket. Behind a reverse proxy, configure Gin trusted proxies or every client may look like one IP.
 
 ## Swagger
 

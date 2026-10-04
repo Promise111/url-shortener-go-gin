@@ -22,7 +22,7 @@ func Router(pool *pgxpool.Pool, cfg *config.Config) *gin.Engine {
 	var r = gin.Default()
 
 	createLimiter := middleware.NewIPLimiter(rate.Every(6*time.Second), 3)
-	redirectLimiter := middleware.NewIPLimiter(10, 20)
+	redirectLimiter := middleware.NewIPLimiter(5, 10)
 
 	api := r.Group(APIPrefix)
 
