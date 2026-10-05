@@ -347,16 +347,20 @@ const docTemplate = `{
             ],
             "properties": {
                 "expires_at": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "date-time",
+                    "example": "2027-04-08T00:00:00Z"
                 },
                 "long_url": {
                     "type": "string",
-                    "maxLength": 2048
+                    "maxLength": 2048,
+                    "example": "https://example.com"
                 },
                 "short_code": {
                     "type": "string",
                     "maxLength": 20,
-                    "minLength": 3
+                    "minLength": 3,
+                    "example": "docs"
                 }
             }
         },

@@ -61,9 +61,9 @@ func (o *OptionalExpiresAt) UnmarshalJSON(b []byte) error {
 }
 
 type CreateLinkRequest struct {
-	LongURL   string     `json:"long_url" binding:"required,url,max=2048"`
-	ExpiresAt *time.Time `json:"expires_at"`
-	ShortCode *string    `json:"short_code" binding:"omitempty,alphanum,min=3,max=20"`
+	LongURL   string     `json:"long_url" binding:"required,url,max=2048" example:"https://example.com"`
+	ExpiresAt *time.Time `json:"expires_at" example:"2027-04-08T00:00:00Z" format:"date-time"`
+	ShortCode *string    `json:"short_code" binding:"omitempty,alphanum,min=3,max=20" example:"docs" maxLength:"20"`
 }
 
 func (r CreateLinkRequest) ValidateExpiresAt() error {
