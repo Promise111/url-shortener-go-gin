@@ -21,6 +21,13 @@ import (
 var ErrExpiresAtInPast = errors.New("expires_at must be in the future")
 var InternalServerErrorMessage = "Something went wrong!"
 
+var reserved = map[string]string{
+	"api":     "used by the API",
+	"health":  "used by health checks",
+	"links":   "used by the links API",
+	"swagger": "used by API docs",
+}
+
 type OptionalExpiresAt struct {
 	Present bool
 	Time    *time.Time
@@ -56,6 +63,7 @@ func (o *OptionalExpiresAt) UnmarshalJSON(b []byte) error {
 type CreateLinkRequest struct {
 	LongURL   string     `json:"long_url" binding:"required,url,max=2048"`
 	ExpiresAt *time.Time `json:"expires_at"`
+	ShortCode *string    `json:"short_code" binding:"omitempty,alphanum,min=3,max=20"`
 }
 
 func (r CreateLinkRequest) ValidateExpiresAt() error {
@@ -117,9 +125,13 @@ type GetLinksResponse struct {
 }
 
 type GetLinkResponse struct {
-	Status  bool   `json:"status" example:"true"`
-	Message string `json:"message" example:"Records fetched successfully!"`
+	Status  bool       `json:"status" example:"true"`
+	Message string     `json:"message" example:"Records fetched successfully!"`
 	Data    LinkSample `json:"data"`
+}
+
+func LowerTrim(str string) string {
+	return strings.ToLower(strings.TrimSpace(str))
 }
 
 // @Summary Shorten URL
@@ -147,20 +159,41 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		var link *model.Link
+		code := ""
+		if CreateLinkReq.ShortCode != nil {
+			code = LowerTrim(*CreateLinkReq.ShortCode)
+		}
 
-		for range 3 {
-			short, shortGenErr := shortcode.Generate(10)
-			if shortGenErr != nil {
+		if code != "" {
+			val, taken := reserved[code]
+			if taken {
+				WriteError(c, http.StatusUnprocessableEntity, "I saw it coming, only you will hit a reserved keyword error: "+val)
+				return
+			}
+			link, err = repository.CreateLink(c.Request.Context(), pool, CreateLinkReq.LongURL, code, CreateLinkReq.ExpiresAt)
+			if err != nil {
+				if database.IsUniqueViolationErr(err) {
+					WriteError(c, http.StatusConflict, "The short code you entered is taken")
+					return
+				}
 				WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
 				return
 			}
-			link, err = repository.CreateLink(c.Request.Context(), pool, CreateLinkReq.LongURL, short, CreateLinkReq.ExpiresAt)
-			if err == nil {
-				break
-			}
-			if !database.IsUniqueViolationErr(err) {
-				WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
-				return
+		} else {
+			for range 3 {
+				short, shortGenErr := shortcode.Generate(10)
+				if shortGenErr != nil {
+					WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
+					return
+				}
+				link, err = repository.CreateLink(c.Request.Context(), pool, CreateLinkReq.LongURL, short, CreateLinkReq.ExpiresAt)
+				if err == nil {
+					break
+				}
+				if !database.IsUniqueViolationErr(err) {
+					WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
+					return
+				}
 			}
 		}
 
