@@ -7,6 +7,10 @@ definitions:
       long_url:
         maxLength: 2048
         type: string
+      short_code:
+        maxLength: 20
+        minLength: 3
+        type: string
     required:
     - long_url
     type: object
@@ -84,7 +88,7 @@ definitions:
         example: https://facebook.com
         type: string
       short_code:
-        example: "1234567890"
+        example: 6aAwoxoksd
         type: string
       updated_at:
         example: "2026-09-11T00:00:00Z"
@@ -145,6 +149,11 @@ paths:
             type: string
         "404":
           description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "410":
+          description: Gone
           schema:
             additionalProperties: true
             type: object

@@ -321,6 +321,13 @@ const docTemplate = `{
                             "additionalProperties": true
                         }
                     },
+                    "410": {
+                        "description": "Gone",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -345,6 +352,11 @@ const docTemplate = `{
                 "long_url": {
                     "type": "string",
                     "maxLength": 2048
+                },
+                "short_code": {
+                    "type": "string",
+                    "maxLength": 20,
+                    "minLength": 3
                 }
             }
         },
@@ -453,7 +465,7 @@ const docTemplate = `{
                 },
                 "short_code": {
                     "type": "string",
-                    "example": "1234567890"
+                    "example": "6aAwoxoksd"
                 },
                 "updated_at": {
                     "type": "string",
