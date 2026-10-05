@@ -9,8 +9,8 @@ Stack: **Go**, **Gin**, **PostgreSQL** (`pgx` pool), **Swag** for OpenAPI, **Air
 - Create, list, get, update, and delete links under `/api/v1`
 - Optional `expires_at` on create and update (RFC3339 only; a set timestamp must be in the future). On **PATCH**, JSON `null` or a blank string clears expiry; omitting the field leaves it as-is
 - Public redirect: `GET /{shortCode}` → **307 Temporary Redirect**. Unknown codes are **404**. Expired codes are **410 Gone**. Clicks increment only after a live row is found (not on 410)
+- Create generates a 10-character base62 code and retries the insert up to **3** times if Postgres reports a unique `short_code` (`23505`). Optional custom `short_code` on create: alphanumeric, 3–20 chars, stored lowercased; reserved words **422**; already taken **409**
 - Per-IP rate limits on **create** and **public redirect** (token bucket). Over limit → **429**
-- Create generates a 10-character base62 code and retries the insert up to **3** times if Postgres reports a unique `short_code` (`23505`)
 - Health check
 - Swagger UI at `/swagger/index.html`
 
@@ -146,17 +146,20 @@ Error:
 
 ### `POST /api/v1/links`
 
-Create a short link. `long_url` required (`url`, max 2048). `expires_at` optional; if set, must be in the future.
+Create a short link. `long_url` required (`url`, max 2048). `expires_at` optional; if set, must be in the future. `short_code` optional (`alphanum`, min 3, max 20). Omit it (or send empty) to generate a 10-character code.
 
 ```json
 {
   "long_url": "https://example.com/very/long/path",
-  "expires_at": "2027-04-08T00:00:00Z"
+  "expires_at": "2027-04-08T00:00:00Z",
+  "short_code": "docs"
 }
 ```
 
+Custom codes are trimmed and lowercased. Reserved names (`api`, `health`, `links`, `swagger`) are rejected so they cannot shadow `/api`, `/health`, `/links`, or `/swagger`.
+
 **201** — `data` is the link (`id`, `long_url`, `short_code`, `expires_at`, `clicks`, `created_at`, `updated_at`).  
-**400** — validation. **429** — per-IP create limit (see Rate limiting). **500** — server/DB, including after three unique `short_code` collisions.
+**400** — validation. **409** — custom `short_code` already taken. **422** — reserved `short_code`. **429** — per-IP create limit (see Rate limiting). **500** — server/DB, including after three unique collisions on a **generated** code.
 
 Share `http://localhost:8003/{short_code}` using `data.short_code`.
 
@@ -235,11 +238,11 @@ http://localhost:8003/{short_code}
 
 ## Short codes
 
-`shortcode.Generate(n)` draws `n` random bytes (`crypto/rand`) and maps each byte onto a 62-character alphabet (`0-9`, `a-z`, `A-Z`). The argument is the **output length**: create calls `Generate(10)`, so codes are **10 characters**, not hex. The `links.short_code` column is `VARCHAR(64)` with a `UNIQUE` constraint.
+`shortcode.Generate(n)` draws `n` random bytes (`crypto/rand`) and maps each byte onto a 62-character alphabet (`0-9`, `a-z`, `A-Z`). The argument is the **output length**: when `short_code` is omitted, create calls `Generate(10)` (**10 characters**). The `links.short_code` column is `VARCHAR(64)` with a `UNIQUE` constraint.
 
-`Generate` does not talk to the database. If `INSERT` hits a duplicate `short_code` (Postgres SQLSTATE `23505`), create generates a new code and inserts again, up to **3** attempts. Any other insert error is a **500** immediately. Three collisions in a row is also **500**.
+Custom create: client sends `short_code` → trim + lowercase → reject reserved (`api`, `health`, `links`, `swagger`) with **422** → `INSERT`. Duplicate custom code is **409** (no retry). Generated codes still retry up to **3** times on `23505`.
 
-Uniqueness is the unique index, not a `SELECT` before insert.
+`Generate` does not talk to the database. Uniqueness is the unique index, not a `SELECT` before insert.
 
 ## Rate limiting
 
@@ -248,7 +251,7 @@ In-memory token buckets (`golang.org/x/time/rate`), **one bucket per client IP**
 | Route | Refill | Burst |
 |---|---|---|
 | `POST /api/v1/links` | 1 token every 6 seconds (`rate.Every(6s)`) | 3 |
-| `GET /{shortCode}` | 60 tokens per second | 1 |
+| `GET /{shortCode}` | 5 tokens per second | 10 |
 
 Over limit → **429** `{ "status": false, "message": "Too many requests" }`. The handler (and Postgres) does not run.
 
