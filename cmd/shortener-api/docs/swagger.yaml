@@ -10,11 +10,22 @@ definitions:
         example: https://example.com
         maxLength: 2048
         type: string
+      max_clicks:
+        example: 100
+        minimum: 1
+        type: integer
       short_code:
         example: docs
         maxLength: 20
         minLength: 3
         type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/model.Status'
+        enum:
+        - active
+        - disabled
+        example: disabled
     required:
     - long_url
     type: object
@@ -119,6 +130,16 @@ definitions:
         example: true
         type: boolean
     type: object
+  model.Status:
+    enum:
+    - disabled
+    - expired
+    - active
+    type: string
+    x-enum-varnames:
+    - StatusDisabled
+    - StatusExpired
+    - StatusActive
 host: localhost:8003
 info:
   contact:

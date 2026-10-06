@@ -356,11 +356,28 @@ const docTemplate = `{
                     "maxLength": 2048,
                     "example": "https://example.com"
                 },
+                "max_clicks": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "example": 100
+                },
                 "short_code": {
                     "type": "string",
                     "maxLength": 20,
                     "minLength": 3,
                     "example": "docs"
+                },
+                "status": {
+                    "enum": [
+                        "active",
+                        "disabled"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.Status"
+                        }
+                    ],
+                    "example": "disabled"
                 }
             }
         },
@@ -506,6 +523,19 @@ const docTemplate = `{
                     "example": true
                 }
             }
+        },
+        "model.Status": {
+            "type": "string",
+            "enum": [
+                "disabled",
+                "expired",
+                "active"
+            ],
+            "x-enum-varnames": [
+                "StatusDisabled",
+                "StatusExpired",
+                "StatusActive"
+            ]
         }
     }
 }`

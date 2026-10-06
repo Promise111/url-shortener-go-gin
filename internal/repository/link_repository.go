@@ -9,24 +9,26 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func CreateLink(c context.Context, pool *pgxpool.Pool, longURL string, shortCode string, expiresAt *time.Time) (*model.Link, error) {
+func CreateLink(c context.Context, pool *pgxpool.Pool, longURL string, shortCode string, expiresAt *time.Time, status model.Status, maxClicks *int64) (*model.Link, error) {
 	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
 	var query string = `
-	INSERT INTO links (long_url, short_code, expires_at) 
-	VALUES ($1, $2, $3) 
-	RETURNING id, long_url, short_code, expires_at, clicks, created_at, updated_at;
+	INSERT INTO links (long_url, short_code, expires_at, status, max_clicks) 
+	VALUES ($1, $2, $3, $4, $5) 
+	RETURNING id, long_url, short_code, expires_at, clicks, status, max_clicks, created_at, updated_at;
 	`
 	var err error
 
 	var link model.Link
-	err = pool.QueryRow(ctx, query, longURL, shortCode, expiresAt).Scan(
+	err = pool.QueryRow(ctx, query, longURL, shortCode, expiresAt, status, maxClicks).Scan(
 		&link.ID,
 		&link.LongURL,
 		&link.ShortCode,
 		&link.ExpiresAt,
 		&link.Clicks,
+		&link.Status,
+		&link.MaxClicks,
 		&link.CreatedAt,
 		&link.UpdatedAt,
 	)

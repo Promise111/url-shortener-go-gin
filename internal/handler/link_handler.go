@@ -20,6 +20,7 @@ import (
 
 var ErrExpiresAtInPast = errors.New("expires_at must be in the future")
 var InternalServerErrorMessage = "Something went wrong!"
+var InvalidStatusMessage = errors.New("status must be either active or disabled")
 
 var reserved = map[string]string{
 	"api":     "used by the API",
@@ -61,9 +62,11 @@ func (o *OptionalExpiresAt) UnmarshalJSON(b []byte) error {
 }
 
 type CreateLinkRequest struct {
-	LongURL   string     `json:"long_url" binding:"required,url,max=2048" example:"https://example.com"`
-	ExpiresAt *time.Time `json:"expires_at" example:"2027-04-08T00:00:00Z" format:"date-time"`
-	ShortCode *string    `json:"short_code" binding:"omitempty,alphanum,min=3,max=20" example:"docs" maxLength:"20"`
+	LongURL   string       `json:"long_url" binding:"required,url,max=2048" example:"https://example.com"`
+	ExpiresAt *time.Time   `json:"expires_at" example:"2027-04-08T00:00:00Z" format:"date-time"`
+	ShortCode *string      `json:"short_code" binding:"omitempty,alphanum,min=3,max=20" example:"docs" maxLength:"20"`
+	MaxClicks *int64       `json:"max_clicks" binding:"omitempty,gte=1" example:"100"`
+	Status    model.Status `json:"status" binding:"omitempty,oneof=active disabled" example:"disabled"`
 }
 
 func (r CreateLinkRequest) ValidateExpiresAt() error {
@@ -74,6 +77,14 @@ func (r CreateLinkRequest) ValidateExpiresAt() error {
 		return ErrExpiresAtInPast
 	}
 	return nil
+}
+
+func (r CreateLinkRequest) AllowedOnWrite() error {
+	if r.Status == model.StatusActive || r.Status == model.StatusDisabled {
+		return nil
+	}
+
+	return InvalidStatusMessage
 }
 
 type UpdateLinkRequest struct {
@@ -158,6 +169,11 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
+		if err = CreateLinkReq.AllowedOnWrite(); err != nil {
+			WriteError(c, http.StatusBadRequest, err.Error())
+			return
+		}
+
 		var link *model.Link
 		code := ""
 		if CreateLinkReq.ShortCode != nil {
@@ -170,7 +186,7 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 				WriteError(c, http.StatusUnprocessableEntity, "I saw it coming, only you will hit a reserved keyword error: "+val)
 				return
 			}
-			link, err = repository.CreateLink(c.Request.Context(), pool, CreateLinkReq.LongURL, code, CreateLinkReq.ExpiresAt)
+			link, err = repository.CreateLink(c.Request.Context(), pool, CreateLinkReq.LongURL, code, CreateLinkReq.ExpiresAt, CreateLinkReq.Status, CreateLinkReq.MaxClicks)
 			if err != nil {
 				if database.IsUniqueViolationErr(err) {
 					WriteError(c, http.StatusConflict, "The short code you entered is taken")
@@ -186,7 +202,7 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 					WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
 					return
 				}
-				link, err = repository.CreateLink(c.Request.Context(), pool, CreateLinkReq.LongURL, short, CreateLinkReq.ExpiresAt)
+				link, err = repository.CreateLink(c.Request.Context(), pool, CreateLinkReq.LongURL, short, CreateLinkReq.ExpiresAt, CreateLinkReq.Status, CreateLinkReq.MaxClicks)
 				if err == nil {
 					break
 				}
