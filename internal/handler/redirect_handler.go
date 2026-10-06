@@ -38,14 +38,18 @@ func RedirectShortCodeHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			WriteError(c, http.StatusInternalServerError, "Something went wrong!")
 			return
 		}
-		if (link.ExpiresAt != nil && !link.ExpiresAt.After(now)) || (link.Status == model.StatusExpired || link.Status == model.StatusDisabled || (link.MaxClicks != nil && *link.MaxClicks == link.Clicks)) {
-			WriteError(c, http.StatusGone, "Link expired!")
+		if link.Status == model.StatusDisabled {
+			WriteError(c, http.StatusGone, "This link has been disabled.")
+			return
+		}
+		if (link.ExpiresAt != nil && !link.ExpiresAt.After(now)) || (link.Status == model.StatusExpired || (link.MaxClicks != nil && *link.MaxClicks <= link.Clicks)) {
+			WriteError(c, http.StatusGone, "This link has expired.")
 			return
 		}
 		err = repository.IncrementClickCount(c.Request.Context(), pool, shortCode)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				WriteError(c, http.StatusNotFound, "Link record not found.")
+				WriteError(c, http.StatusGone, "This link is no longer available.")
 				return
 			}
 			WriteError(c, http.StatusInternalServerError, "Something went wrong!")

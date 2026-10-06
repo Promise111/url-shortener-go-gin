@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/Promise111/url-shortener-go-gin/internal/model"
@@ -45,7 +46,7 @@ func GetLinkByID(c context.Context, pool *pgxpool.Pool, id int64) (*model.Link, 
 	defer cancel()
 
 	var query string = `
-	SELECT id, long_url, short_code, expires_at, clicks, created_at, updated_at 
+	SELECT id, long_url, short_code, expires_at, clicks, status, max_clicks, created_at, updated_at 
 	FROM links 
 	WHERE id = $1;
 	`
@@ -58,6 +59,8 @@ func GetLinkByID(c context.Context, pool *pgxpool.Pool, id int64) (*model.Link, 
 		&link.ShortCode,
 		&link.ExpiresAt,
 		&link.Clicks,
+		&link.Status,
+		&link.MaxClicks,
 		&link.CreatedAt,
 		&link.UpdatedAt,
 	)
@@ -91,7 +94,7 @@ func GetLinks(c context.Context, pool *pgxpool.Pool, page int, limit int) ([]mod
 
 	var offset = (page - 1) * limit
 	var query string = `
-	SELECT id, long_url, short_code, expires_at, clicks, created_at, updated_at
+	SELECT id, long_url, short_code, expires_at, clicks, status, max_clicks, created_at, updated_at
 	FROM links 
 	WHERE expires_at IS NULL OR expires_at > NOW()
 	ORDER BY created_at DESC
@@ -113,6 +116,8 @@ func GetLinks(c context.Context, pool *pgxpool.Pool, page int, limit int) ([]mod
 			&link.ShortCode,
 			&link.ExpiresAt,
 			&link.Clicks,
+			&link.Status,
+			&link.MaxClicks,
 			&link.CreatedAt,
 			&link.UpdatedAt,
 		)
@@ -135,20 +140,24 @@ func UpdateLinks(c context.Context, pool *pgxpool.Pool, longURL string, expiresA
 	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
+	slog.Info("repo", "req", map[string]any{"longUrl": longURL, "expiresAt": expiresAt, "id": id, "status": status, "maxClicks": maxClicks})
+
 	var query string = `
 	UPDATE links 
-	SET long_url = $1, expires_at = $2, updated_at = NOW()
+	SET long_url = $1, expires_at = $2, status = $4, max_clicks = $5, updated_at = NOW()
 	WHERE id = $3 
-	RETURNING id, long_url, short_code, expires_at, clicks, created_at, updated_at;
+	RETURNING id, long_url, short_code, expires_at, clicks, status, max_clicks, created_at, updated_at;
 	`
 	var link model.Link
 
-	var err error = pool.QueryRow(ctx, query, longURL, expiresAt, id).Scan(
+	var err error = pool.QueryRow(ctx, query, longURL, expiresAt, id, status, maxClicks).Scan(
 		&link.ID,
 		&link.LongURL,
 		&link.ShortCode,
 		&link.ExpiresAt,
 		&link.Clicks,
+		&link.Status,
+		&link.MaxClicks,
 		&link.CreatedAt,
 		&link.UpdatedAt,
 	)
@@ -188,7 +197,7 @@ func GetLinkByShortCode(c context.Context, pool *pgxpool.Pool, shortCode string)
 	var err error
 	var link model.Link
 	var query string = `
-	SELECT id, long_url, short_code, expires_at, clicks, created_at, updated_at 
+	SELECT id, long_url, short_code, expires_at, clicks, status, max_clicks, created_at, updated_at 
 	FROM links 
 	WHERE short_code = $1;
 	`
@@ -198,6 +207,8 @@ func GetLinkByShortCode(c context.Context, pool *pgxpool.Pool, shortCode string)
 		&link.ShortCode,
 		&link.ExpiresAt,
 		&link.Clicks,
+		&link.Status,
+		&link.MaxClicks,
 		&link.CreatedAt,
 		&link.UpdatedAt,
 	)
@@ -215,7 +226,10 @@ func IncrementClickCount(c context.Context, pool *pgxpool.Pool, shortCode string
 	var query string = `
 	UPDATE links 
 	SET clicks = clicks + 1 
-	WHERE short_code = $1;
+	WHERE short_code = $1 
+	AND status = 'active' 
+	AND (expires_at IS NULL OR expires_at > NOW()) 
+	AND (max_clicks IS NULL OR clicks < max_clicks)
 	`
 
 	var cmdTag, err = pool.Exec(ctx, query, shortCode)

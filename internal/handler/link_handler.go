@@ -65,7 +65,7 @@ type CreateLinkRequest struct {
 	LongURL   string       `json:"long_url" binding:"required,url,max=2048" example:"https://example.com"`
 	ExpiresAt *time.Time   `json:"expires_at" example:"2027-04-08T00:00:00Z" format:"date-time"`
 	ShortCode *string      `json:"short_code" binding:"omitempty,alphanum,min=3,max=20" example:"docs" maxLength:"20"`
-	MaxClicks *int64       `json:"max_clicks" binding:"omitempty,gte=1" example:"100"`
+	MaxClicks *int64       `json:"max_clicks" binding:"omitempty,gte=5" example:"100"`
 	Status    model.Status `json:"status" binding:"omitempty,oneof=active disabled" example:"disabled"`
 }
 
@@ -90,8 +90,8 @@ func (r CreateLinkRequest) AllowedOnWrite() error {
 type UpdateLinkRequest struct {
 	LongURL   *string           `json:"long_url" binding:"omitempty,url,max=2048"`
 	ExpiresAt OptionalExpiresAt `json:"expires_at" swaggertype:"string" format:"date-time" example:"2027-08-08T10:58:29Z"`
-	MaxClicks *int64 `json:"max_clicks" binding:"omitempty,gte=10"`
-	Status *model.Status `json:"status" binding:"omitempty,oneof=active disabled"`
+	MaxClicks *int64            `json:"max_clicks" binding:"omitempty,gte=5"`
+	Status    *model.Status     `json:"status" binding:"omitempty,oneof=active disabled"`
 }
 
 func (r UpdateLinkRequest) ValidateExpiresAt() error {
@@ -173,6 +173,10 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
+		if CreateLinkReq.Status == "" {
+			CreateLinkReq.Status = model.StatusActive
+		}
+
 		if err = CreateLinkReq.AllowedOnWrite(); err != nil {
 			WriteError(c, http.StatusBadRequest, err.Error())
 			return
@@ -231,6 +235,8 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 				ShortCode: link.ShortCode,
 				ExpiresAt: link.ExpiresAt,
 				Clicks:    link.Clicks,
+				Status:    link.Status,
+				MaxClicks: link.MaxClicks,
 				CreatedAt: link.CreatedAt,
 				UpdatedAt: link.UpdatedAt,
 			},
@@ -297,6 +303,8 @@ func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 				ShortCode: link.ShortCode,
 				ExpiresAt: link.ExpiresAt,
 				Clicks:    link.Clicks,
+				Status:    link.Status,
+				MaxClicks: link.MaxClicks,
 				CreatedAt: link.CreatedAt,
 				UpdatedAt: link.UpdatedAt,
 			})
@@ -357,6 +365,8 @@ func GetLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 				ShortCode: link.ShortCode,
 				ExpiresAt: link.ExpiresAt,
 				Clicks:    link.Clicks,
+				Status:    link.Status,
+				MaxClicks: link.MaxClicks,
 				CreatedAt: link.CreatedAt,
 				UpdatedAt: link.UpdatedAt,
 			},
@@ -443,8 +453,8 @@ func UpdateLinksByIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		if req.LongURL == nil && !req.ExpiresAt.Present {
-			WriteError(c, http.StatusBadRequest, "Expected at least one of long_url or expires_at")
+		if req.LongURL == nil && !req.ExpiresAt.Present && req.MaxClicks == nil && req.Status == nil {
+			WriteError(c, http.StatusBadRequest, "Expected at least one of long_url, expires_at, status or max_clicks")
 			return
 		}
 
@@ -480,6 +490,8 @@ func UpdateLinksByIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 				ShortCode: link.ShortCode,
 				ExpiresAt: link.ExpiresAt,
 				Clicks:    link.Clicks,
+				Status:    link.Status,
+				MaxClicks: link.MaxClicks,
 				CreatedAt: link.CreatedAt,
 				UpdatedAt: link.UpdatedAt,
 			},
