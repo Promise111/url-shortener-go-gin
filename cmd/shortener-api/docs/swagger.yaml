@@ -102,9 +102,16 @@ definitions:
       long_url:
         example: https://facebook.com
         type: string
+      max_clicks:
+        example: 50
+        type: integer
       short_code:
         example: 6aAwoxoksd
         type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/model.Status'
+        example: disabled
       updated_at:
         example: "2026-09-11T00:00:00Z"
         type: string
@@ -118,6 +125,15 @@ definitions:
       long_url:
         maxLength: 2048
         type: string
+      max_clicks:
+        minimum: 10
+        type: integer
+      status:
+        allOf:
+        - $ref: '#/definitions/model.Status'
+        enum:
+        - active
+        - disabled
     type: object
   handler.UpdateLinkResponse:
     properties:

@@ -38,7 +38,7 @@ func RedirectShortCodeHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			WriteError(c, http.StatusInternalServerError, "Something went wrong!")
 			return
 		}
-		if link.ExpiresAt != nil && !link.ExpiresAt.After(now) {
+		if (link.ExpiresAt != nil && !link.ExpiresAt.After(now)) || (link.Status == model.StatusExpired || link.Status == model.StatusDisabled || (link.MaxClicks != nil && *link.MaxClicks == link.Clicks)) {
 			WriteError(c, http.StatusGone, "Link expired!")
 			return
 		}

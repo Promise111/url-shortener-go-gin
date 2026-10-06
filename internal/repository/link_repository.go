@@ -131,7 +131,7 @@ func GetLinks(c context.Context, pool *pgxpool.Pool, page int, limit int) ([]mod
 	return links, nil
 }
 
-func UpdateLinks(c context.Context, pool *pgxpool.Pool, longURL string, expiresAt *time.Time, id int64) (*model.Link, error) {
+func UpdateLinks(c context.Context, pool *pgxpool.Pool, longURL string, expiresAt *time.Time, id int64, status model.Status, maxClicks *int64) (*model.Link, error) {
 	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 

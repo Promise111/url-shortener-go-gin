@@ -484,9 +484,21 @@ const docTemplate = `{
                     "type": "string",
                     "example": "https://facebook.com"
                 },
+                "max_clicks": {
+                    "type": "integer",
+                    "example": 50
+                },
                 "short_code": {
                     "type": "string",
                     "example": "6aAwoxoksd"
+                },
+                "status": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.Status"
+                        }
+                    ],
+                    "example": "disabled"
                 },
                 "updated_at": {
                     "type": "string",
@@ -505,6 +517,21 @@ const docTemplate = `{
                 "long_url": {
                     "type": "string",
                     "maxLength": 2048
+                },
+                "max_clicks": {
+                    "type": "integer",
+                    "minimum": 10
+                },
+                "status": {
+                    "enum": [
+                        "active",
+                        "disabled"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.Status"
+                        }
+                    ]
                 }
             }
         },

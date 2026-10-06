@@ -90,6 +90,8 @@ func (r CreateLinkRequest) AllowedOnWrite() error {
 type UpdateLinkRequest struct {
 	LongURL   *string           `json:"long_url" binding:"omitempty,url,max=2048"`
 	ExpiresAt OptionalExpiresAt `json:"expires_at" swaggertype:"string" format:"date-time" example:"2027-08-08T10:58:29Z"`
+	MaxClicks *int64 `json:"max_clicks" binding:"omitempty,gte=10"`
+	Status *model.Status `json:"status" binding:"omitempty,oneof=active disabled"`
 }
 
 func (r UpdateLinkRequest) ValidateExpiresAt() error {
@@ -104,13 +106,15 @@ func (r UpdateLinkRequest) ValidateExpiresAt() error {
 }
 
 type LinkSample struct {
-	ID        int64      `json:"id" example:"1"`
-	LongURL   string     `json:"long_url" example:"https://facebook.com"`
-	ShortCode string     `json:"short_code" example:"6aAwoxoksd"`
-	ExpiresAt *time.Time `json:"expires_at" example:"2027-04-08T00:00:00Z"`
-	Clicks    int64      `json:"clicks" example:"10"`
-	CreatedAt time.Time  `json:"created_at" example:"2026-02-02T00:00:00Z"`
-	UpdatedAt time.Time  `json:"updated_at" example:"2026-09-11T00:00:00Z"`
+	ID        int64        `json:"id" example:"1"`
+	LongURL   string       `json:"long_url" example:"https://facebook.com"`
+	ShortCode string       `json:"short_code" example:"6aAwoxoksd"`
+	ExpiresAt *time.Time   `json:"expires_at" example:"2027-04-08T00:00:00Z"`
+	Clicks    int64        `json:"clicks" example:"10"`
+	Status    model.Status `json:"status" example:"disabled"`
+	MaxClicks *int64       `json:"max_clicks" example:"50"`
+	CreatedAt time.Time    `json:"created_at" example:"2026-02-02T00:00:00Z"`
+	UpdatedAt time.Time    `json:"updated_at" example:"2026-09-11T00:00:00Z"`
 }
 
 type CreateLinkResponse struct {
@@ -446,14 +450,22 @@ func UpdateLinksByIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 
 		var longURL string = link.LongURL
 		var expiresAt *time.Time = link.ExpiresAt
+		var status model.Status = link.Status
+		var maxClicks *int64 = link.MaxClicks
 		if req.LongURL != nil {
 			longURL = *req.LongURL
+		}
+		if req.Status != nil {
+			status = *req.Status
+		}
+		if req.MaxClicks != nil {
+			maxClicks = req.MaxClicks
 		}
 		if req.ExpiresAt.Present {
 			expiresAt = req.ExpiresAt.Time
 		}
 
-		link, err = repository.UpdateLinks(c.Request.Context(), pool, longURL, expiresAt, id)
+		link, err = repository.UpdateLinks(c.Request.Context(), pool, longURL, expiresAt, id, status, maxClicks)
 		if err != nil {
 			WriteError(c, http.StatusInternalServerError, err.Error())
 			return
