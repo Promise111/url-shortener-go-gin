@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"log/slog"
 	"time"
 
 	"github.com/Promise111/url-shortener-go-gin/internal/model"
@@ -76,8 +75,7 @@ func GetLinksTotalCount(c context.Context, pool *pgxpool.Pool) (int64, error) {
 	defer cancel()
 
 	var query string = `
-	SELECT COUNT(*) FROM links 
-	WHERE expires_at IS NULL OR expires_at > NOW();
+	SELECT COUNT(*) FROM links;
 	`
 	var total int64
 	var err = pool.QueryRow(ctx, query).Scan(&total)
@@ -96,7 +94,6 @@ func GetLinks(c context.Context, pool *pgxpool.Pool, page int, limit int) ([]mod
 	var query string = `
 	SELECT id, long_url, short_code, expires_at, clicks, status, max_clicks, created_at, updated_at
 	FROM links 
-	WHERE expires_at IS NULL OR expires_at > NOW()
 	ORDER BY created_at DESC
 	LIMIT $1 OFFSET $2
 	`
@@ -139,8 +136,6 @@ func GetLinks(c context.Context, pool *pgxpool.Pool, page int, limit int) ([]mod
 func UpdateLinks(c context.Context, pool *pgxpool.Pool, longURL string, expiresAt *time.Time, id int64, status model.Status, maxClicks *int64) (*model.Link, error) {
 	ctx, cancel := CtxTimeout(c)
 	defer cancel()
-
-	slog.Info("repo", "req", map[string]any{"longUrl": longURL, "expiresAt": expiresAt, "id": id, "status": status, "maxClicks": maxClicks})
 
 	var query string = `
 	UPDATE links 
