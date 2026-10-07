@@ -49,7 +49,7 @@ type CreateUserResponse struct {
 // @Success 201 {object} CreateUserResponse
 // @Failure 400 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
-// @Router /api/v1/auth/signup [post]
+// @Router /api/v1/auth/register [post]
 func RegisterUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var err error

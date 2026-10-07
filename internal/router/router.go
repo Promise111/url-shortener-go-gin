@@ -41,7 +41,7 @@ func Router(pool *pgxpool.Pool, cfg *config.Config) *gin.Engine {
 
 	{
 		auth := api.Group(AuthPrefix)
-		auth.POST("/signup", handler.RegisterUserHandler(pool))
+		auth.POST("/register", handler.RegisterUserHandler(pool))
 	}
 
 	// public
