@@ -21,6 +21,7 @@ import (
 var ErrExpiresAtInPast = errors.New("expires_at must be in the future")
 var InternalServerErrorMessage = "Something went wrong!"
 var InvalidStatusMessage = errors.New("status must be either active or disabled")
+var MaxClicksCannotBeLess = errors.New("MaxClicks must be 5 or greater")
 
 var reserved = map[string]string{
 	"api":     "used by the API",
@@ -61,6 +62,33 @@ func (o *OptionalExpiresAt) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+type OptionalMaxClicks struct {
+	Present bool
+	Value *int64
+}
+
+func (m *OptionalMaxClicks) UnmarshalJSON (b []byte) error {
+	m.Present = true // UnmarshalJSON is only called because key was present
+
+	if string(b) == "null" {
+		m.Value = nil
+		return nil
+	}
+
+	if strings.TrimSpace(string(b)) == "" {
+		m.Value = nil
+		return nil
+	}
+
+	var n int64
+	if err := json.Unmarshal(b, &n); err != nil {
+		return err
+	}
+
+	m.Value = &n
+	return nil
+}
+
 type CreateLinkRequest struct {
 	LongURL   string       `json:"long_url" binding:"required,url,max=2048" example:"https://example.com"`
 	ExpiresAt *time.Time   `json:"expires_at" example:"2027-04-08T00:00:00Z" format:"date-time"`
@@ -90,7 +118,7 @@ func (r CreateLinkRequest) AllowedOnWrite() error {
 type UpdateLinkRequest struct {
 	LongURL   *string           `json:"long_url" binding:"omitempty,url,max=2048"`
 	ExpiresAt OptionalExpiresAt `json:"expires_at" swaggertype:"string" format:"date-time" example:"2027-08-08T10:58:29Z"`
-	MaxClicks *int64            `json:"max_clicks" binding:"omitempty,gte=5"`
+	MaxClicks OptionalMaxClicks            `json:"max_clicks" binding:"omitempty" swaggertype:"integer" format:"int" example:"50"`
 	Status    *model.Status     `json:"status" binding:"omitempty,oneof=active disabled"`
 }
 
@@ -102,6 +130,18 @@ func (r UpdateLinkRequest) ValidateExpiresAt() error {
 	if !r.ExpiresAt.Time.After(now) {
 		return ErrExpiresAtInPast
 	}
+	return nil
+}
+
+func (r *UpdateLinkRequest) ValidateMaxClicks() error {
+	if !r.MaxClicks.Present || r.MaxClicks.Value == nil {
+		return nil
+	}
+
+	if *r.MaxClicks.Value < 5 {
+		return MaxClicksCannotBeLess
+	}
+
 	return nil
 }
 
@@ -452,8 +492,12 @@ func UpdateLinksByIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			WriteError(c, http.StatusBadRequest, err.Error())
 			return
 		}
+		if err = req.ValidateMaxClicks(); err != nil {
+			WriteError(c, http.StatusBadRequest, err.Error())
+			return
+		}
 
-		if req.LongURL == nil && !req.ExpiresAt.Present && req.MaxClicks == nil && req.Status == nil {
+		if req.LongURL == nil && !req.ExpiresAt.Present && !req.MaxClicks.Present && req.Status == nil {
 			WriteError(c, http.StatusBadRequest, "Expected at least one of long_url, expires_at, status or max_clicks")
 			return
 		}
@@ -468,8 +512,8 @@ func UpdateLinksByIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		if req.Status != nil {
 			status = *req.Status
 		}
-		if req.MaxClicks != nil {
-			maxClicks = req.MaxClicks
+		if req.MaxClicks.Present {
+			maxClicks = req.MaxClicks.Value
 		}
 		if req.ExpiresAt.Present {
 			expiresAt = req.ExpiresAt.Time

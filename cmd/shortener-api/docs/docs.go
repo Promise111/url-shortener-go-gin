@@ -358,7 +358,7 @@ const docTemplate = `{
                 },
                 "max_clicks": {
                     "type": "integer",
-                    "minimum": 1,
+                    "minimum": 5,
                     "example": 100
                 },
                 "short_code": {
@@ -520,7 +520,8 @@ const docTemplate = `{
                 },
                 "max_clicks": {
                     "type": "integer",
-                    "minimum": 10
+                    "format": "int",
+                    "example": 50
                 },
                 "status": {
                     "enum": [
