@@ -516,7 +516,8 @@ const docTemplate = `{
                 },
                 "long_url": {
                     "type": "string",
-                    "maxLength": 2048
+                    "maxLength": 2048,
+                    "example": "https://facebook.com"
                 },
                 "max_clicks": {
                     "type": "integer",

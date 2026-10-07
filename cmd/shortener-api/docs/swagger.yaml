@@ -123,6 +123,7 @@ definitions:
         format: date-time
         type: string
       long_url:
+        example: https://facebook.com
         maxLength: 2048
         type: string
       max_clicks:
