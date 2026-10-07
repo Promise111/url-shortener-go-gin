@@ -75,11 +75,6 @@ func (m *OptionalMaxClicks) UnmarshalJSON (b []byte) error {
 		return nil
 	}
 
-	if strings.TrimSpace(string(b)) == "" {
-		m.Value = nil
-		return nil
-	}
-
 	var n int64
 	if err := json.Unmarshal(b, &n); err != nil {
 		return err
