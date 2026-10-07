@@ -27,7 +27,7 @@ func RedirectShortCodeHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var shortCode string = c.Param("shortCode")
 		var err error
-		var link *model.Link
+		var link *model.Links
 		var now time.Time = time.Now().UTC()
 		link, err = repository.GetLinkByShortCode(c.Request.Context(), pool, shortCode)
 		if err != nil {

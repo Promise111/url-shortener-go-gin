@@ -217,7 +217,7 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		var link *model.Link
+		var link *model.Links
 		code := ""
 		if CreateLinkReq.ShortCode != nil {
 			code = LowerTrim(*CreateLinkReq.ShortCode)
@@ -293,7 +293,7 @@ func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var limit int = 10
 		var page int = 1
-		var links []model.Link
+		var links []model.Links
 		var err error
 		if queryLimit := c.Query("limit"); queryLimit != "" {
 			if l, err := strconv.Atoi(queryLimit); err == nil && l > 0 {
@@ -377,7 +377,7 @@ func GetLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		var link *model.Link
+		var link *model.Links
 
 		link, err = repository.GetLinkByID(c.Request.Context(), pool, id)
 
@@ -467,7 +467,7 @@ func UpdateLinksByIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		var link *model.Link
+		var link *model.Links
 		link, err = repository.GetLinkByID(c.Request.Context(), pool, id)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {

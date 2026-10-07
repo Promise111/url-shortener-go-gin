@@ -10,7 +10,7 @@ const (
 	StatusActive   Status = "active"
 )
 
-type Link struct {
+type Links struct {
 	ID        int64      `json:"id" db:"id"`
 	LongURL   string     `json:"long_url" db:"long_url"`
 	ShortCode string     `json:"short_code" db:"short_code"`

@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func CreateLink(c context.Context, pool *pgxpool.Pool, longURL string, shortCode string, expiresAt *time.Time, status model.Status, maxClicks *int64) (*model.Link, error) {
+func CreateLink(c context.Context, pool *pgxpool.Pool, longURL string, shortCode string, expiresAt *time.Time, status model.Status, maxClicks *int64) (*model.Links, error) {
 	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
@@ -20,7 +20,7 @@ func CreateLink(c context.Context, pool *pgxpool.Pool, longURL string, shortCode
 	`
 	var err error
 
-	var link model.Link
+	var link model.Links
 	err = pool.QueryRow(ctx, query, longURL, shortCode, expiresAt, status, maxClicks).Scan(
 		&link.ID,
 		&link.LongURL,
@@ -40,7 +40,7 @@ func CreateLink(c context.Context, pool *pgxpool.Pool, longURL string, shortCode
 	return &link, nil
 }
 
-func GetLinkByID(c context.Context, pool *pgxpool.Pool, id int64) (*model.Link, error) {
+func GetLinkByID(c context.Context, pool *pgxpool.Pool, id int64) (*model.Links, error) {
 	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
@@ -50,7 +50,7 @@ func GetLinkByID(c context.Context, pool *pgxpool.Pool, id int64) (*model.Link, 
 	WHERE id = $1;
 	`
 
-	var link model.Link
+	var link model.Links
 
 	var err error = pool.QueryRow(ctx, query, id).Scan(
 		&link.ID,
@@ -86,7 +86,7 @@ func GetLinksTotalCount(c context.Context, pool *pgxpool.Pool) (int64, error) {
 	return total, nil
 }
 
-func GetLinks(c context.Context, pool *pgxpool.Pool, page int, limit int) ([]model.Link, error) {
+func GetLinks(c context.Context, pool *pgxpool.Pool, page int, limit int) ([]model.Links, error) {
 	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
@@ -104,9 +104,9 @@ func GetLinks(c context.Context, pool *pgxpool.Pool, page int, limit int) ([]mod
 	}
 	defer rows.Close()
 
-	var links []model.Link = []model.Link{}
+	var links []model.Links = []model.Links{}
 	for rows.Next() {
-		var link model.Link
+		var link model.Links
 		err := rows.Scan(
 			&link.ID,
 			&link.LongURL,
@@ -133,7 +133,7 @@ func GetLinks(c context.Context, pool *pgxpool.Pool, page int, limit int) ([]mod
 	return links, nil
 }
 
-func UpdateLinks(c context.Context, pool *pgxpool.Pool, longURL string, expiresAt *time.Time, id int64, status model.Status, maxClicks *int64) (*model.Link, error) {
+func UpdateLinks(c context.Context, pool *pgxpool.Pool, longURL string, expiresAt *time.Time, id int64, status model.Status, maxClicks *int64) (*model.Links, error) {
 	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
@@ -143,7 +143,7 @@ func UpdateLinks(c context.Context, pool *pgxpool.Pool, longURL string, expiresA
 	WHERE id = $3 
 	RETURNING id, long_url, short_code, expires_at, clicks, status, max_clicks, created_at, updated_at;
 	`
-	var link model.Link
+	var link model.Links
 
 	var err error = pool.QueryRow(ctx, query, longURL, expiresAt, id, status, maxClicks).Scan(
 		&link.ID,
@@ -185,12 +185,12 @@ func DeleteLink(c context.Context, pool *pgxpool.Pool, id int64) error {
 	return nil
 }
 
-func GetLinkByShortCode(c context.Context, pool *pgxpool.Pool, shortCode string) (*model.Link, error) {
+func GetLinkByShortCode(c context.Context, pool *pgxpool.Pool, shortCode string) (*model.Links, error) {
 	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
 	var err error
-	var link model.Link
+	var link model.Links
 	var query string = `
 	SELECT id, long_url, short_code, expires_at, clicks, status, max_clicks, created_at, updated_at 
 	FROM links 
