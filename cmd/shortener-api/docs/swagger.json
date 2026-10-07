@@ -19,6 +19,54 @@
     "host": "localhost:8003",
     "basePath": "/",
     "paths": {
+        "/api/v1/auth/signup": {
+            "post": {
+                "description": "Create new user account",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Register User",
+                "parameters": [
+                    {
+                        "description": "Create Link payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.RegisterUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.CreateUserResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/health": {
             "get": {
                 "description": "Returns the health status of the shortener API.",
@@ -394,6 +442,22 @@
                 }
             }
         },
+        "handler.CreateUserResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/handler.UserSample"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "User created successfully."
+                },
+                "status": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
         "handler.GetLinkResponse": {
             "type": "object",
             "properties": {
@@ -503,6 +567,32 @@
                 }
             }
         },
+        "handler.RegisterUserRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "password",
+                "username"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "hello@hi.com"
+                },
+                "password": {
+                    "type": "string",
+                    "maxLength": 30,
+                    "minLength": 6,
+                    "example": "myPass123"
+                },
+                "username": {
+                    "type": "string",
+                    "maxLength": 30,
+                    "minLength": 3,
+                    "example": "randomgee"
+                }
+            }
+        },
         "handler.UpdateLinkRequest": {
             "type": "object",
             "properties": {
@@ -518,7 +608,7 @@
                 },
                 "max_clicks": {
                     "type": "integer",
-                    "format": "int",
+                    "format": "int64",
                     "example": 50
                 },
                 "status": {
@@ -547,6 +637,39 @@
                 "status": {
                     "type": "boolean",
                     "example": true
+                }
+            }
+        },
+        "handler.UserSample": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "example": "2026-02-02T00:00:00Z"
+                },
+                "deleted_at": {
+                    "type": "string",
+                    "example": ""
+                },
+                "email": {
+                    "type": "string",
+                    "example": "hello@hi.com"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "b0f7915c-5b4e-4c1a-8fc8-d6e9663f3709"
+                },
+                "password_hash": {
+                    "type": "string",
+                    "example": "****************"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2027-08-02T00:00:00Z"
+                },
+                "username": {
+                    "type": "string",
+                    "example": "randomgee"
                 }
             }
         },
