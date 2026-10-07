@@ -113,7 +113,7 @@ func (r CreateLinkRequest) AllowedOnWrite() error {
 type UpdateLinkRequest struct {
 	LongURL   *string           `json:"long_url" binding:"omitempty,url,max=2048" example:"https://facebook.com"`
 	ExpiresAt OptionalExpiresAt `json:"expires_at" swaggertype:"string" format:"date-time" example:"2027-08-08T10:58:29Z"`
-	MaxClicks OptionalMaxClicks            `json:"max_clicks" binding:"omitempty" swaggertype:"integer" format:"int" example:"50"`
+	MaxClicks OptionalMaxClicks            `json:"max_clicks" binding:"omitempty" swaggertype:"integer" format:"int64" example:"50"`
 	Status    *model.Status     `json:"status" binding:"omitempty,oneof=active disabled"`
 }
 
