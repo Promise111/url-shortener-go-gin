@@ -39,6 +39,11 @@ func Router(pool *pgxpool.Pool, cfg *config.Config) *gin.Engine {
 		link.PATCH("/:id", handler.UpdateLinksByIdHandler(pool))
 	}
 
+	{
+		auth := api.Group(AuthPrefix)
+		auth.POST("/signup", handler.RegisterUserHandler(pool))
+	}
+
 	// public
 	r.GET("/:shortCode", redirectLimiter.RateLimiterMiddleware(), handler.RedirectShortCodeHandler(pool))
 
