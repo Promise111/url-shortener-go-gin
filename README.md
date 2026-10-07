@@ -8,13 +8,15 @@ Stack: **Go**, **Gin**, **PostgreSQL** (`pgx` pool), **Swag** for OpenAPI, **Air
 
 - Create, list, get, update, and delete links under `/api/v1`
 - Optional `expires_at` on create and update (RFC3339 only; a set timestamp must be in the future). On **PATCH**, JSON `null` or a blank string clears expiry; omitting the field leaves it as-is
-- Public redirect: `GET /{shortCode}` → **307 Temporary Redirect**. Unknown codes are **404**. Expired codes are **410 Gone**. Clicks increment only after a live row is found (not on 410)
+- Optional `status` (`active` or `disabled`) and `max_clicks` (≥ 5, or omit/`null` for unlimited). Create defaults `status` to `active`. The client cannot set `expired`
+- On **PATCH**, JSON `null` on `max_clicks` clears the cap; omitting the field leaves it as-is
+- Public redirect: `GET /{shortCode}` → **307 Temporary Redirect**. Unknown codes are **404**. Disabled, expired (time or click cap), or a lost increment race are **410 Gone**. Clicks increment only on 307
 - Create generates a 10-character base62 code and retries the insert up to **3** times if Postgres reports a unique `short_code` (`23505`). Optional custom `short_code` on create: alphanumeric, 3–20 chars, stored lowercased; reserved words **422**; already taken **409**
 - Per-IP rate limits on **create** and **public redirect** (token bucket). Over limit → **429**
 - Health check
 - Swagger UI at `/swagger/index.html`
 
-Not implemented yet: auth (`JWT_SECRET` is loaded but unused).
+Not implemented yet: auth (`JWT_SECRET` is loaded but unused), Redis cache, job queue.
 
 ## Why two kinds of URL
 
@@ -65,7 +67,7 @@ Request flow: **router → middleware (create/redirect only) → handler → rep
 ## Setup
 
 1. Create a database (name is up to you).
-2. Apply the SQL in `migrations/` in order (`000001`, then `000002`).
+2. Apply the SQL in `migrations/` in order (`000001`, `000002`, then `000003`).
 3. Copy the env vars below into a `.env` at the repo root (that file is gitignored):
 
 ```env
@@ -120,6 +122,8 @@ Error:
 
 `expires_at` is **RFC3339 only** (example `2027-04-08T00:00:00Z`). Date-only strings are rejected. Create uses `*time.Time` (RFC3339, or omit/`null`). PATCH also accepts JSON `null` / blank strings to clear expiry.
 
+`max_clicks` is a JSON integer (≥ 5) or omit/`null` (unlimited). PATCH `{ "max_clicks": null }` clears the cap. `status` on write is `active` or `disabled` only.
+
 **429** (create and public redirect only):
 
 ```json
@@ -146,19 +150,21 @@ Error:
 
 ### `POST /api/v1/links`
 
-Create a short link. `long_url` required (`url`, max 2048). `expires_at` optional; if set, must be in the future. `short_code` optional (`alphanum`, min 3, max 20). Omit it (or send empty) to generate a 10-character code.
+Create a short link. `long_url` required (`url`, max 2048). `expires_at` optional; if set, must be in the future. `short_code` optional (`alphanum`, min 3, max 20). Omit it (or send empty) to generate a 10-character code. `max_clicks` optional (integer ≥ 5); omit or `null` means unlimited. `status` optional (`active` or `disabled`); omit means `active`. Do not send `expired`.
 
 ```json
 {
   "long_url": "https://example.com/very/long/path",
   "expires_at": "2027-04-08T00:00:00Z",
-  "short_code": "docs"
+  "short_code": "docs",
+  "max_clicks": 50,
+  "status": "active"
 }
 ```
 
 Custom codes are trimmed and lowercased. Reserved names (`api`, `health`, `links`, `swagger`) are rejected so they cannot shadow `/api`, `/health`, `/links`, or `/swagger`.
 
-**201** — `data` is the link (`id`, `long_url`, `short_code`, `expires_at`, `clicks`, `created_at`, `updated_at`).  
+**201** — `data` is the link (`id`, `long_url`, `short_code`, `expires_at`, `clicks`, `status`, `max_clicks`, `created_at`, `updated_at`).  
 **400** — validation. **409** — custom `short_code` already taken. **422** — reserved `short_code`. **429** — per-IP create limit (see Rate limiting). **500** — server/DB, including after three unique collisions on a **generated** code.
 
 Share `http://localhost:8003/{short_code}` using `data.short_code`.
@@ -172,7 +178,7 @@ Query (all optional):
 | `page` | `1` | Must be > 0 or the default is kept |
 | `limit` | `10` | Capped at `100` |
 
-Lists non-expired rows (`expires_at IS NULL OR expires_at > NOW()`), newest first.
+Lists **all** rows (including disabled and expired), newest first. `total` is `COUNT(*)` of the table. Public redirect still returns **410** for dead links.
 
 **200**
 
@@ -194,24 +200,36 @@ Lists non-expired rows (`expires_at IS NULL OR expires_at > NOW()`), newest firs
 
 `id` is a numeric path param (`int64`).
 
-**200** — `{ status, message, data }` with one link (expired rows are still returned by id; list omits them; public redirect returns **410**).  
+**200** — `{ status, message, data }` with one link (disabled and expired rows are returned; public redirect still **410**).  
 **400** — `id` not an integer. **404** — no row. **500** — server/DB.
 
 ### `PATCH /api/v1/links/{id}`
 
-JSON **body is required**. At least one of `long_url` or `expires_at` must be present (`expires_at` counts as present even when `null`).
+JSON **body is required**. At least one of `long_url`, `expires_at`, `status`, or `max_clicks` must be present (`expires_at` and `max_clicks` count as present even when `null`).
 
 ```json
 { "long_url": "https://example.com/new" }
 ```
 
-Clear expiry (same endpoint):
+Pause a link:
+
+```json
+{ "status": "disabled" }
+```
+
+Clear expiry or the click cap (same endpoint):
 
 ```json
 { "expires_at": null }
 ```
 
-`""` and whitespace-only strings are treated as null. **Omit** `expires_at` to leave the stored value unchanged.
+```json
+{ "max_clicks": null }
+```
+
+For `expires_at`, `""` and whitespace-only strings are treated as null. For `max_clicks`, send a JSON integer or `null` (not a string). **Omit** a field to leave the stored value unchanged.
+
+`status` may be `active` or `disabled` only. A set `max_clicks` must be ≥ 5.
 
 **200** — updated link in `data`.  
 **400** — bad id, bind/validation, or empty patch. **404**. **500**.
@@ -223,13 +241,18 @@ Clear expiry (same endpoint):
 
 ### `GET /{shortCode}`
 
-Public. Not under `/api/v1`. Gin param name is `shortCode`.
+Public. Not under `/api/v1`. Gin param name is `shortCode`. Lookup is by `short_code` (exact match).
 
-Lookup is by `short_code` only. Expiry is decided in the handler (`expires_at` in the past, UTC, same rule as create: not strictly after now).
+**404** — no row.  
+**410** — row exists but is not live. Clicks are not incremented.
 
-**307** — live link. `Location` is `long_url`. Then `clicks = clicks + 1` for that `short_code` (no expiry `WHERE`; Get already proved the row exists).  
-**404** — no row, or the row was deleted between Get and increment.  
-**410** — row exists but is expired. Clicks are not incremented.  
+| Cause | Message |
+|---|---|
+| `status` is `disabled` | `This link has been disabled.` |
+| Clock expiry, `status` is `expired`, or `clicks` already at `max_clicks` | `This link has expired.` |
+| Increment updated 0 rows (another request used the last click, or the row was disabled between lookup and update) | `This link is no longer available.` |
+
+**307** — live link. `Location` is `long_url`. Then `clicks = clicks + 1` where `status = 'active'`, the row is not past `expires_at`, and `max_clicks` is null or `clicks < max_clicks`.  
 **429** — per-IP redirect limit (see Rate limiting). **500**.
 
 ```text
@@ -301,10 +324,13 @@ Table `links`:
 | `long_url` | non-empty, max 2048 chars |
 | `short_code` | unique, non-empty, max 64 |
 | `expires_at` | nullable timestamptz |
+| `status` | enum `active` / `disabled` / `expired`; `NOT NULL DEFAULT 'active'` |
+| `max_clicks` | nullable bigint; `NULL` = unlimited; if set, must be `> 0` (API create/PATCH also require ≥ 5) |
 | `clicks` | default 0; incremented on a successful public redirect (307), not on 410 |
 | `created_at` / `updated_at` | default `NOW()`; PATCH sets `updated_at = NOW()` |
 
-Indexes (migration `000002`): `expires_at` (partial, non-null), `clicks`, `created_at DESC`.
+Indexes (migration `000002`): `expires_at` (partial, non-null), `clicks`, `created_at DESC`.  
+Index (migration `000003`): `status`. Enum type `link_status` is created in `000003`.
 
 ## License
 
