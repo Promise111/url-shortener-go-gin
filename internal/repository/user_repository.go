@@ -12,7 +12,8 @@ func GetUserByID(c context.Context, pool *pgxpool.Pool, id string) (*model.Users
 	defer cancel()
 
 	var query = `
-	SELECT id, email, password_hash, username, deleted_at, created_at, updated_at WHERE id = $1
+	SELECT id, email, password_hash, username, deleted_at, created_at, updated_at FROM 	users 
+	WHERE id = $1;
 	`
 
 	var user model.Users
@@ -42,7 +43,10 @@ func GetUserByEmail(c context.Context, pool *pgxpool.Pool, email string) (*model
 	var err error
 	var user model.Users
 
-	var query string = `SELECT id, email, password_hash, username, deleted_at, created_at, updated_at FROM user WHERE email = $1`
+	var query string = `SELECT id, email, password_hash, username, deleted_at, created_at, updated_at 
+	FROM users 
+	WHERE email = $1;
+	`
 
 	err = pool.QueryRow(ctx, query, email).Scan(
 		&user.ID,
@@ -68,7 +72,10 @@ func GetUserByUsername(c context.Context, pool *pgxpool.Pool, username string) (
 	var err error
 	var user model.Users
 
-	var query string = `SELECT id, email, password_hash, username, deleted_at, created_at, updated_at FROM user WHERE username = $1`
+	var query string = `SELECT id, email, password_hash, username, deleted_at, created_at, updated_at 
+	FROM users 
+	WHERE username = $1;
+	`
 
 	err = pool.QueryRow(ctx, query, username).Scan(
 		&user.ID,
@@ -95,9 +102,9 @@ func CreateUser(c context.Context, pool *pgxpool.Pool, email string, password_ha
 	var user model.Users
 
 	var query string = `
-	INSERT INTO users ('email','password_hash','username') 
+	INSERT INTO  users (email, password_hash, username) 
 	VALUES ($1, $2, $3) 
-	RETURNING id, email, password_hash, deleted_at, created_at, updated_at;
+	RETURNING id, email, password_hash, username, deleted_at, created_at, updated_at;
 	`
 
 	err = pool.QueryRow(ctx, query, email, password_hash, username).Scan(

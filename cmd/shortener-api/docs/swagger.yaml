@@ -127,6 +127,22 @@ definitions:
         example: "2026-09-11T00:00:00Z"
         type: string
     type: object
+  handler.LoginResponse:
+    properties:
+      data:
+        $ref: '#/definitions/handler.LoginResponseData'
+      status:
+        example: true
+        type: boolean
+    type: object
+  handler.LoginResponseData:
+    properties:
+      token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InByb21pc2VpaHVubmFAaGkuY29tIiwiZXhwIjoxNzkxNDg2NzgzLCJpZCI6IjUxMWE3NDNhLWFlNGItNGZhMC1hYjQzLTUxOTM3ZTUxMGM2OSIsInVzZXJuYW1lIjoicmFuZG9tZ2VlIn0.n5vU3bqtslWmIlCxlUNOlpb9V_CxXWHgM53Ha2ZbmNY
+        type: string
+      user:
+        $ref: '#/definitions/handler.UserSample'
+    type: object
   handler.RegisterUserRequest:
     properties:
       email:
@@ -192,9 +208,6 @@ definitions:
         type: string
       id:
         example: b0f7915c-5b4e-4c1a-8fc8-d6e9663f3709
-        type: string
-      password_hash:
-        example: '****************'
         type: string
       updated_at:
         example: "2027-08-02T00:00:00Z"
@@ -263,13 +276,45 @@ paths:
       summary: Redirect by short code
       tags:
       - links
-  /api/v1/auth/signup:
+  /api/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Allow user login and generate access code
+      parameters:
+      - description: Login payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.RegisterUserRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Login User
+      tags:
+      - auth
+  /api/v1/auth/register:
     post:
       consumes:
       - application/json
       description: Create new user account
       parameters:
-      - description: Create Link payload
+      - description: Create user payload
         in: body
         name: request
         required: true

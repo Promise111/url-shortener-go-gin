@@ -79,6 +79,8 @@ github.com/gohugoio/hashstructure v1.1.0 h1:38yUfZBca6qXSbUpteLhjDGLNskclHaguFBY
 github.com/gohugoio/hashstructure v1.1.0/go.mod h1:Pz8dcwjZs6FBKWu9x/ZIChrTHIM175zfUJK0KLvC1z8=
 github.com/gohugoio/hugo v0.165.0 h1:E9uRFnDw3E+Nv69OU8vsD1YLI3+tRcSHhs82y4fBXdc=
 github.com/gohugoio/hugo v0.165.0/go.mod h1:mOASrT3UGLvAXPdRuY6zUH9SoKBy7VoMQIzMFf4CMi8=
+github.com/golang-jwt/jwt/v5 v5.3.1 h1:kYf81DTWFe7t+1VvL7eS+jKFVWaUnK9cB1qbwn63YCY=
+github.com/golang-jwt/jwt/v5 v5.3.1/go.mod h1:fxCRLWMO43lRc8nhHWY6LGqRcf+1gQWArsqaEUEa5bE=
 github.com/google/go-cmp v0.3.1/go.mod h1:8QqcDgzrUqlUb/G2PQTWiueGozuR1884gddMywk6iLU=
 github.com/google/gofuzz v1.0.0/go.mod h1:dBl0BpW6vV/+mYPU4Po3pmUjxk6FQPldtuIdl/M65Eg=
 github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsIM=

@@ -22,7 +22,55 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/api/v1/auth/signup": {
+        "/api/v1/auth/login": {
+            "post": {
+                "description": "Allow user login and generate access code",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Login User",
+                "parameters": [
+                    {
+                        "description": "Login payload",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.RegisterUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.LoginResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/register": {
             "post": {
                 "description": "Create new user account",
                 "consumes": [
@@ -37,7 +85,7 @@ const docTemplate = `{
                 "summary": "Register User",
                 "parameters": [
                     {
-                        "description": "Create Link payload",
+                        "description": "Create user payload",
                         "name": "request",
                         "in": "body",
                         "required": true,
@@ -570,6 +618,30 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/definitions/handler.LoginResponseData"
+                },
+                "status": {
+                    "type": "boolean",
+                    "example": true
+                }
+            }
+        },
+        "handler.LoginResponseData": {
+            "type": "object",
+            "properties": {
+                "token": {
+                    "type": "string",
+                    "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InByb21pc2VpaHVubmFAaGkuY29tIiwiZXhwIjoxNzkxNDg2NzgzLCJpZCI6IjUxMWE3NDNhLWFlNGItNGZhMC1hYjQzLTUxOTM3ZTUxMGM2OSIsInVzZXJuYW1lIjoicmFuZG9tZ2VlIn0.n5vU3bqtslWmIlCxlUNOlpb9V_CxXWHgM53Ha2ZbmNY"
+                },
+                "user": {
+                    "$ref": "#/definitions/handler.UserSample"
+                }
+            }
+        },
         "handler.RegisterUserRequest": {
             "type": "object",
             "required": [
@@ -661,10 +733,6 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "example": "b0f7915c-5b4e-4c1a-8fc8-d6e9663f3709"
-                },
-                "password_hash": {
-                    "type": "string",
-                    "example": "****************"
                 },
                 "updated_at": {
                     "type": "string",
