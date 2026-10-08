@@ -28,12 +28,12 @@ type RegisterUserRequest struct {
 }
 
 type UserSample struct {
-	ID           string     `json:"id" example:"b0f7915c-5b4e-4c1a-8fc8-d6e9663f3709"`
-	Email        string     `json:"email" example:"hello@hi.com"`
-	Username     string     `json:"username" example:"randomgee"`
-	DeletedAt    *time.Time `json:"deleted_at" example:""`
-	CreatedAt    time.Time  `json:"created_at" example:"2026-02-02T00:00:00Z"`
-	UpdatedAt    time.Time  `json:"updated_at" example:"2027-08-02T00:00:00Z"`
+	ID        string     `json:"id" example:"b0f7915c-5b4e-4c1a-8fc8-d6e9663f3709"`
+	Email     string     `json:"email" example:"hello@hi.com"`
+	Username  string     `json:"username" example:"randomgee"`
+	DeletedAt *time.Time `json:"deleted_at" example:""`
+	CreatedAt time.Time  `json:"created_at" example:"2026-02-02T00:00:00Z"`
+	UpdatedAt time.Time  `json:"updated_at" example:"2027-08-02T00:00:00Z"`
 }
 
 type CreateUserResponse struct {
@@ -70,7 +70,6 @@ func GenerateToken(user model.Users, cfg *config.Config) (string, error) {
 		"id":       user.ID,
 		"email":    user.Email,
 		"username": user.Username,
-		"exp":      time.Now().Add(10 * time.Hour).Unix(),
 	}
 
 	var token *jwt.Token = jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -79,7 +78,6 @@ func GenerateToken(user model.Users, cfg *config.Config) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
 	return tokenString, nil
 }
 
@@ -124,12 +122,12 @@ func RegisterUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			Status:  true,
 			Message: "User registered successfully",
 			Data: UserSample{
-				ID:           user.ID,
-				Email:        user.Email,
-				Username:     user.Username,
-				DeletedAt:    user.DeletedAt,
-				CreatedAt:    user.CreatedAt,
-				UpdatedAt:    user.UpdatedAt,
+				ID:        user.ID,
+				Email:     user.Email,
+				Username:  user.Username,
+				DeletedAt: user.DeletedAt,
+				CreatedAt: user.CreatedAt,
+				UpdatedAt: user.UpdatedAt,
 			},
 		})
 	}
@@ -184,7 +182,7 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 
 		token, err = GenerateToken(*user, cfg)
 		if err != nil {
-			slog.Error("login","err",err.Error())
+			slog.Error("login", "err", err.Error())
 			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
 			return
 		}
@@ -192,10 +190,10 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 		c.JSON(http.StatusAccepted, LoginResponse{
 			Status: true,
 			Data: LoginResponseData{
-				User:  UserSample{
-					ID: user.ID,
-					Email: user.Email,
-					Username: user.Username,
+				User: UserSample{
+					ID:        user.ID,
+					Email:     user.Email,
+					Username:  user.Username,
 					DeletedAt: user.DeletedAt,
 					CreatedAt: user.CreatedAt,
 					UpdatedAt: user.UpdatedAt,

@@ -31,7 +31,7 @@ func Router(pool *pgxpool.Pool, cfg *config.Config) *gin.Engine {
 	}
 
 	{
-		link := api.Group(LinkPrefix)
+		link := api.Group(LinkPrefix, middleware.AuthMiddleware(cfg))
 		link.POST("", createLimiter.RateLimiterMiddleware(), handler.CreateLinkHandler(pool))
 		link.GET("", handler.GetLinksHandler(pool))
 		link.GET("/:id", handler.GetLinkByIDHandler(pool))
