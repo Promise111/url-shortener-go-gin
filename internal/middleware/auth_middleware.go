@@ -44,7 +44,7 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		userId, ok := claims["user_id"].(string)
+		userId, ok := claims["id"].(string)
 		if !ok {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"status":  false,

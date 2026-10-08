@@ -70,6 +70,7 @@ func GenerateToken(user model.Users, cfg *config.Config) (string, error) {
 		"id":       user.ID,
 		"email":    user.Email,
 		"username": user.Username,
+		"exp":      time.Now().Add(5 * time.Hour),
 	}
 
 	var token *jwt.Token = jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
