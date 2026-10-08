@@ -15,7 +15,7 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var authHeader string = c.GetHeader("authorization")
 
-		var tokenString = strings.TrimPrefix(authHeader, "bearer")
+		var tokenString = strings.TrimPrefix(authHeader, "bearer ")
 		if authHeader == tokenString || tokenString == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"status": false, "message": "Invalid authorization header format"})
 			return
