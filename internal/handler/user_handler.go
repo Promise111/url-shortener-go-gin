@@ -158,12 +158,13 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 		}
 		var email = LowerTrim(input.Email)
 		var username = LowerTrim(input.Username)
+		var password = input.Password
 		var user *model.Users
 		if email != "" {
-			user, err = repository.GetUserByEmail(c.Request.Context(), pool, input.Email)
+			user, err = repository.GetUserByEmail(c.Request.Context(), pool, email)
 		}
 		if username != "" {
-			user, err = repository.GetUserByUsername(c.Request.Context(), pool, input.Username)
+			user, err = repository.GetUserByUsername(c.Request.Context(), pool, username)
 		}
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
@@ -174,7 +175,7 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		if err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
+		if err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 			WriteError(c, http.StatusUnauthorized, InvalidCredentials)
 			return
 		}
