@@ -126,6 +126,9 @@ definitions:
       updated_at:
         example: "2026-09-11T00:00:00Z"
         type: string
+      user_id:
+        example: b88a21e7-8524-428f-a109-f9eefdab3129
+        type: string
     type: object
   handler.LoginResponse:
     properties:
@@ -514,6 +517,35 @@ paths:
             additionalProperties: true
             type: object
       summary: Update link
+      tags:
+      - links
+  /api/v1/links/code/{shortode}:
+    get:
+      description: Fetch link by short_code
+      parameters:
+      - description: Link short code
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.GetLinkResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get link
       tags:
       - links
 schemes:

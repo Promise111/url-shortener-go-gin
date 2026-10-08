@@ -22,6 +22,7 @@ var ErrExpiresAtInPast = errors.New("expires_at must be in the future")
 var InternalServerErrorMessage = "Something went wrong!"
 var InvalidStatusMessage = errors.New("status must be either active or disabled")
 var MaxClicksCannotBeLess = errors.New("MaxClicks must be 5 or greater")
+var UnauthorizedError = errors.New("Unauthorized")
 
 var reserved = map[string]string{
 	"api":     "used by the API",
@@ -64,10 +65,10 @@ func (o *OptionalExpiresAt) UnmarshalJSON(b []byte) error {
 
 type OptionalMaxClicks struct {
 	Present bool
-	Value *int64
+	Value   *int64
 }
 
-func (m *OptionalMaxClicks) UnmarshalJSON (b []byte) error {
+func (m *OptionalMaxClicks) UnmarshalJSON(b []byte) error {
 	m.Present = true // UnmarshalJSON is only called because key was present
 
 	if string(b) == "null" {
@@ -113,7 +114,7 @@ func (r CreateLinkRequest) AllowedOnWrite() error {
 type UpdateLinkRequest struct {
 	LongURL   *string           `json:"long_url" binding:"omitempty,url,max=2048" example:"https://facebook.com"`
 	ExpiresAt OptionalExpiresAt `json:"expires_at" swaggertype:"string" format:"date-time" example:"2027-08-08T10:58:29Z"`
-	MaxClicks OptionalMaxClicks            `json:"max_clicks" binding:"omitempty" swaggertype:"integer" format:"int64" example:"50"`
+	MaxClicks OptionalMaxClicks `json:"max_clicks" binding:"omitempty" swaggertype:"integer" format:"int64" example:"50"`
 	Status    *model.Status     `json:"status" binding:"omitempty,oneof=active disabled"`
 }
 
@@ -148,6 +149,7 @@ type LinkSample struct {
 	Clicks    int64        `json:"clicks" example:"10"`
 	Status    model.Status `json:"status" example:"disabled"`
 	MaxClicks *int64       `json:"max_clicks" example:"50"`
+	UserID    string       `json:"user_id" example:"b88a21e7-8524-428f-a109-f9eefdab3129"`
 	CreatedAt time.Time    `json:"created_at" example:"2026-02-02T00:00:00Z"`
 	UpdatedAt time.Time    `json:"updated_at" example:"2026-09-11T00:00:00Z"`
 }
@@ -184,6 +186,18 @@ func LowerTrim(str string) string {
 	return strings.ToLower(strings.TrimSpace(str))
 }
 
+func getUserIdFromContext(c *gin.Context) (string, error) {
+	userIDValue, exists := c.Get("user_id")
+	if !exists {
+		return "", UnauthorizedError
+	}
+	userID, ok := userIDValue.(string)
+	if !ok {
+		return "", UnauthorizedError
+	}
+	return userID, nil
+}
+
 // @Summary Shorten URL
 // @Description Create new shortened URL
 // @Tags links
@@ -198,6 +212,12 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var CreateLinkReq CreateLinkRequest
 		var err error
+		userID, err := getUserIdFromContext(c)
+		if err != nil {
+			WriteError(c, http.StatusUnauthorized, err.Error())
+			return
+		}
+
 		if err = c.ShouldBindJSON(&CreateLinkReq); err != nil {
 			WriteError(c, http.StatusBadRequest, err.Error())
 			return
@@ -229,7 +249,7 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 				WriteError(c, http.StatusUnprocessableEntity, "I saw it coming, only you will hit a reserved keyword error: "+val)
 				return
 			}
-			link, err = repository.CreateLink(c.Request.Context(), pool, CreateLinkReq.LongURL, code, CreateLinkReq.ExpiresAt, CreateLinkReq.Status, CreateLinkReq.MaxClicks)
+			link, err = repository.CreateLink(c.Request.Context(), pool, CreateLinkReq.LongURL, code, CreateLinkReq.ExpiresAt, CreateLinkReq.Status, CreateLinkReq.MaxClicks, userID)
 			if err != nil {
 				if database.IsUniqueViolationErr(err) {
 					WriteError(c, http.StatusConflict, "The short code you entered is taken")
@@ -245,7 +265,7 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 					WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
 					return
 				}
-				link, err = repository.CreateLink(c.Request.Context(), pool, CreateLinkReq.LongURL, short, CreateLinkReq.ExpiresAt, CreateLinkReq.Status, CreateLinkReq.MaxClicks)
+				link, err = repository.CreateLink(c.Request.Context(), pool, CreateLinkReq.LongURL, short, CreateLinkReq.ExpiresAt, CreateLinkReq.Status, CreateLinkReq.MaxClicks, userID)
 				if err == nil {
 					break
 				}
@@ -272,6 +292,7 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 				Clicks:    link.Clicks,
 				Status:    link.Status,
 				MaxClicks: link.MaxClicks,
+				UserID:    link.UserID,
 				CreatedAt: link.CreatedAt,
 				UpdatedAt: link.UpdatedAt,
 			},
@@ -295,6 +316,13 @@ func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		var page int = 1
 		var links []model.Links
 		var err error
+
+		userID, err := getUserIdFromContext(c)
+		if err != nil {
+			WriteError(c, http.StatusUnauthorized, err.Error())
+			return
+		}
+
 		if queryLimit := c.Query("limit"); queryLimit != "" {
 			if l, err := strconv.Atoi(queryLimit); err == nil && l > 0 {
 				if l > 100 {
@@ -308,7 +336,7 @@ func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 				page = p
 			}
 		}
-		links, err = repository.GetLinks(c.Request.Context(), pool, page, limit)
+		links, err = repository.GetLinks(c.Request.Context(), pool, page, limit, userID)
 		if err != nil {
 			slog.Error(err.Error())
 			WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
@@ -316,7 +344,7 @@ func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		var total int64
-		total, err = repository.GetLinksTotalCount(c.Request.Context(), pool)
+		total, err = repository.GetLinksTotalCount(c.Request.Context(), pool, userID)
 		if err != nil {
 			WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
 			return
@@ -340,6 +368,7 @@ func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 				Clicks:    link.Clicks,
 				Status:    link.Status,
 				MaxClicks: link.MaxClicks,
+				UserID:    link.UserID,
 				CreatedAt: link.CreatedAt,
 				UpdatedAt: link.UpdatedAt,
 			})
@@ -357,7 +386,7 @@ func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	}
 }
 
-// @Summary Get link
+// @Summary Get link by id
 // @Description Fetch link by id
 // @Tags links
 // @Param id path int true "Link ID"
@@ -371,6 +400,13 @@ func GetLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		idParam := c.Param("id")
 		var id int64
 		var err error
+
+		userID, err := getUserIdFromContext(c)
+		if err != nil {
+			WriteError(c, http.StatusUnauthorized, err.Error())
+			return
+		}
+
 		id, err = strconv.ParseInt(idParam, 10, 64) // alternative to int64(id)
 		if err != nil {
 			WriteError(c, http.StatusBadRequest, "Enter valid id parameter")
@@ -379,7 +415,7 @@ func GetLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 
 		var link *model.Links
 
-		link, err = repository.GetLinkByID(c.Request.Context(), pool, id)
+		link, err = repository.GetLinkByID(c.Request.Context(), pool, id, userID)
 
 		if err != nil {
 			slog.Error(err.Error())
@@ -402,6 +438,61 @@ func GetLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 				Clicks:    link.Clicks,
 				Status:    link.Status,
 				MaxClicks: link.MaxClicks,
+				UserID:    link.UserID,
+				CreatedAt: link.CreatedAt,
+				UpdatedAt: link.UpdatedAt,
+			},
+		})
+	}
+}
+
+// @Summary Get link by shortCode
+// @Description Fetch link by short_code
+// @Tags links
+// @Param shortCode path string true "Short code"
+// @Produce json
+// @Success 200 {object} GetLinkResponse
+// @Failure 400 {object} map[string]any
+// @Failure 404 {object} map[string]any
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/v1/links/code/{shortCode} [get]
+func GetLinkByShortHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		shortParam := c.Param("shortCode")
+		var err error
+
+		userID, err := getUserIdFromContext(c)
+		if err != nil {
+			WriteError(c, http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		var link *model.Links
+
+		link, err = repository.GetLinkByShortCode(c.Request.Context(), pool, shortParam, userID)
+
+		if err != nil {
+			slog.Error(err.Error())
+			if errors.Is(err, pgx.ErrNoRows) {
+				WriteError(c, http.StatusNotFound, "URL record not found.")
+				return
+			}
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
+			return
+		}
+
+		c.JSON(http.StatusOK, GetLinkResponse{
+			Status:  true,
+			Message: "Records fetched successfully!",
+			Data: LinkSample{
+				ID:        link.ID,
+				LongURL:   link.LongURL,
+				ShortCode: link.ShortCode,
+				ExpiresAt: link.ExpiresAt,
+				Clicks:    link.Clicks,
+				Status:    link.Status,
+				MaxClicks: link.MaxClicks,
+				UserID:    link.UserID,
 				CreatedAt: link.CreatedAt,
 				UpdatedAt: link.UpdatedAt,
 			},
@@ -422,6 +513,13 @@ func DeleteLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var err error
 		var id int64
+
+		userID, err := getUserIdFromContext(c)
+		if err != nil {
+			WriteError(c, http.StatusUnauthorized, err.Error())
+			return
+		}
+
 		var idParam = c.Param("id")
 		id, err = strconv.ParseInt(idParam, 10, 64)
 		if err != nil {
@@ -429,7 +527,7 @@ func DeleteLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		err = repository.DeleteLink(c.Request.Context(), pool, id)
+		err = repository.DeleteLink(c.Request.Context(), pool, id, userID)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				WriteError(c, http.StatusNotFound, "Link not found")
@@ -460,6 +558,13 @@ func UpdateLinksByIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var id int64
 		var err error
+
+		userID, err := getUserIdFromContext(c)
+		if err != nil {
+			WriteError(c, http.StatusUnauthorized, err.Error())
+			return
+		}
+
 		idParam := c.Param("id")
 		id, err = strconv.ParseInt(idParam, 10, 64)
 		if err != nil {
@@ -468,7 +573,7 @@ func UpdateLinksByIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		var link *model.Links
-		link, err = repository.GetLinkByID(c.Request.Context(), pool, id)
+		link, err = repository.GetLinkByID(c.Request.Context(), pool, id, userID)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				WriteError(c, http.StatusNotFound, "Link not found")
@@ -514,7 +619,7 @@ func UpdateLinksByIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			expiresAt = req.ExpiresAt.Time
 		}
 
-		link, err = repository.UpdateLinks(c.Request.Context(), pool, longURL, expiresAt, id, status, maxClicks)
+		link, err = repository.UpdateLinks(c.Request.Context(), pool, longURL, expiresAt, id, status, maxClicks, userID)
 		if err != nil {
 			WriteError(c, http.StatusInternalServerError, err.Error())
 			return
@@ -531,6 +636,7 @@ func UpdateLinksByIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 				Clicks:    link.Clicks,
 				Status:    link.Status,
 				MaxClicks: link.MaxClicks,
+				UserID:    link.UserID,
 				CreatedAt: link.CreatedAt,
 				UpdatedAt: link.UpdatedAt,
 			},

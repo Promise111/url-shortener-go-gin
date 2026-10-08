@@ -18,6 +18,7 @@ type Links struct {
 	Clicks    int64      `json:"clicks" db:"clicks"`
 	Status    Status     `json:"status" db:"status"`
 	MaxClicks *int64     `json:"max_clicks" db:"max_clicks"`
+	UserID    string     `json:"user_id" db:"user_id"`
 	CreatedAt time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at" db:"updated_at"`
 }

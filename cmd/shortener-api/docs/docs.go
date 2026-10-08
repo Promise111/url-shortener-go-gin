@@ -233,6 +233,49 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/links/code/{shortode}": {
+            "get": {
+                "description": "Fetch link by short_code",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "links"
+                ],
+                "summary": "Get link",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Link short code",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.GetLinkResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/links/{id}": {
             "get": {
                 "description": "Fetch link by id",
@@ -615,6 +658,10 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "example": "2026-09-11T00:00:00Z"
+                },
+                "user_id": {
+                    "type": "string",
+                    "example": "b88a21e7-8524-428f-a109-f9eefdab3129"
                 }
             }
         },

@@ -29,7 +29,7 @@ func RedirectShortCodeHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		var err error
 		var link *model.Links
 		var now time.Time = time.Now().UTC()
-		link, err = repository.GetLinkByShortCode(c.Request.Context(), pool, shortCode)
+		link, err = repository.GetLinkByShortCodeVisitor(c.Request.Context(), pool, shortCode)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				WriteError(c, http.StatusNotFound, "Link record not found.")
