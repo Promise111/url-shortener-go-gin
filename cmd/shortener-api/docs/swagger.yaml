@@ -386,6 +386,8 @@ paths:
           schema:
             additionalProperties: true
             type: object
+      security:
+      - BearerAuth: []
       summary: Get links
       tags:
       - links
@@ -417,6 +419,8 @@ paths:
           schema:
             additionalProperties: true
             type: object
+      security:
+      - BearerAuth: []
       summary: Shorten URL
       tags:
       - links
@@ -447,6 +451,8 @@ paths:
           schema:
             additionalProperties: true
             type: object
+      security:
+      - BearerAuth: []
       summary: Delete link
       tags:
       - links
@@ -475,7 +481,9 @@ paths:
           schema:
             additionalProperties: true
             type: object
-      summary: Get link
+      security:
+      - BearerAuth: []
+      summary: Get link by id
       tags:
       - links
     patch:
@@ -516,18 +524,20 @@ paths:
           schema:
             additionalProperties: true
             type: object
+      security:
+      - BearerAuth: []
       summary: Update link
       tags:
       - links
-  /api/v1/links/code/{shortode}:
+  /api/v1/links/code/{shortCode}:
     get:
       description: Fetch link by short_code
       parameters:
-      - description: Link short code
+      - description: Short code
         in: path
-        name: id
+        name: shortCode
         required: true
-        type: integer
+        type: string
       produces:
       - application/json
       responses:
@@ -540,14 +550,27 @@ paths:
           schema:
             additionalProperties: true
             type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
         "500":
           description: Internal Server Error
           schema:
             additionalProperties: true
             type: object
-      summary: Get link
+      security:
+      - BearerAuth: []
+      summary: Get link by shortCode
       tags:
       - links
 schemes:
 - http
+securityDefinitions:
+  BearerAuth:
+    description: 'Paste: Bearer <your_login_token>'
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

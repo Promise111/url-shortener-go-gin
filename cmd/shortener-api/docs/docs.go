@@ -141,6 +141,11 @@ const docTemplate = `{
         },
         "/api/v1/links": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Fetch all links record",
                 "produces": [
                     "application/json"
@@ -187,6 +192,11 @@ const docTemplate = `{
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create new shortened URL",
                 "consumes": [
                     "application/json"
@@ -233,8 +243,13 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/links/code/{shortode}": {
+        "/api/v1/links/code/{shortCode}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Fetch link by short_code",
                 "produces": [
                     "application/json"
@@ -242,12 +257,12 @@ const docTemplate = `{
                 "tags": [
                     "links"
                 ],
-                "summary": "Get link",
+                "summary": "Get link by shortCode",
                 "parameters": [
                     {
-                        "type": "integer",
-                        "description": "Link short code",
-                        "name": "id",
+                        "type": "string",
+                        "description": "Short code",
+                        "name": "shortCode",
                         "in": "path",
                         "required": true
                     }
@@ -266,6 +281,13 @@ const docTemplate = `{
                             "additionalProperties": true
                         }
                     },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -278,6 +300,11 @@ const docTemplate = `{
         },
         "/api/v1/links/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Fetch link by id",
                 "produces": [
                     "application/json"
@@ -285,7 +312,7 @@ const docTemplate = `{
                 "tags": [
                     "links"
                 ],
-                "summary": "Get link",
+                "summary": "Get link by id",
                 "parameters": [
                     {
                         "type": "integer",
@@ -319,6 +346,11 @@ const docTemplate = `{
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Delete link by id",
                 "tags": [
                     "links"
@@ -361,6 +393,11 @@ const docTemplate = `{
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Update link by id",
                 "consumes": [
                     "application/json"
@@ -803,6 +840,14 @@ const docTemplate = `{
                 "StatusExpired",
                 "StatusActive"
             ]
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "Paste: Bearer \u003cyour_login_token\u003e",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
         }
     }
 }`

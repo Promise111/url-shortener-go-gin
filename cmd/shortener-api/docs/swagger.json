@@ -138,6 +138,11 @@
         },
         "/api/v1/links": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Fetch all links record",
                 "produces": [
                     "application/json"
@@ -184,6 +189,11 @@
                 }
             },
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Create new shortened URL",
                 "consumes": [
                     "application/json"
@@ -230,8 +240,13 @@
                 }
             }
         },
-        "/api/v1/links/code/{shortode}": {
+        "/api/v1/links/code/{shortCode}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Fetch link by short_code",
                 "produces": [
                     "application/json"
@@ -239,12 +254,12 @@
                 "tags": [
                     "links"
                 ],
-                "summary": "Get link",
+                "summary": "Get link by shortCode",
                 "parameters": [
                     {
-                        "type": "integer",
-                        "description": "Link short code",
-                        "name": "id",
+                        "type": "string",
+                        "description": "Short code",
+                        "name": "shortCode",
                         "in": "path",
                         "required": true
                     }
@@ -263,6 +278,13 @@
                             "additionalProperties": true
                         }
                     },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -275,6 +297,11 @@
         },
         "/api/v1/links/{id}": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Fetch link by id",
                 "produces": [
                     "application/json"
@@ -282,7 +309,7 @@
                 "tags": [
                     "links"
                 ],
-                "summary": "Get link",
+                "summary": "Get link by id",
                 "parameters": [
                     {
                         "type": "integer",
@@ -316,6 +343,11 @@
                 }
             },
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Delete link by id",
                 "tags": [
                     "links"
@@ -358,6 +390,11 @@
                 }
             },
             "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Update link by id",
                 "consumes": [
                     "application/json"
@@ -800,6 +837,14 @@
                 "StatusExpired",
                 "StatusActive"
             ]
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "Paste: Bearer \u003cyour_login_token\u003e",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
         }
     }
 }

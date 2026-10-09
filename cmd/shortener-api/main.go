@@ -23,6 +23,11 @@ import (
 //	@license.name	MIT
 //	@license.url	https://opensource.org/licenses/MIT
 
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Paste: Bearer <your_login_token>
+
 // @host		localhost:8003
 // @BasePath	/
 // @schemes	http

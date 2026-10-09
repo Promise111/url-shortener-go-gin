@@ -208,6 +208,7 @@ func getUserIdFromContext(c *gin.Context) (string, error) {
 // @Failure 400 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/links [post]
+// @Security BearerAuth
 func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var CreateLinkReq CreateLinkRequest
@@ -310,6 +311,7 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Failure 400 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/links [get]
+// @Security BearerAuth
 func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var limit int = 10
@@ -395,6 +397,7 @@ func GetLinksHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Failure 400 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/links/{id} [get]
+// @Security BearerAuth
 func GetLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		idParam := c.Param("id")
@@ -456,6 +459,7 @@ func GetLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Failure 404 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/links/code/{shortCode} [get]
+// @Security BearerAuth
 func GetLinkByShortHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		shortParam := c.Param("shortCode")
@@ -509,6 +513,7 @@ func GetLinkByShortHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Failure 400 {object} map[string]interface{}
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/links/{id} [delete]
+// @Security BearerAuth
 func DeleteLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var err error
@@ -554,6 +559,7 @@ func DeleteLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Failure 400 {object} map[string]interface{}
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/links/{id} [patch]
+// @Security BearerAuth
 func UpdateLinksByIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var id int64
