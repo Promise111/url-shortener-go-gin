@@ -1,0 +1,7 @@
+DROP INDEX IF EXISTS idx_links_status;
+
+ALTER TABLE links DROP COLUMN IF EXISTS status;
+
+ALTER TABLE links DROP COLUMN IF EXISTS max_clicks;
+
+DROP TYPE IF EXISTS link_status;
