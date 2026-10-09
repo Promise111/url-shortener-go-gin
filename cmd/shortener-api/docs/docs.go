@@ -42,19 +42,26 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.RegisterUserRequest"
+                            "$ref": "#/definitions/handler.LoginUserRequest"
                         }
                     }
                 ],
                 "responses": {
-                    "201": {
-                        "description": "Created",
+                    "200": {
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/handler.LoginResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -103,6 +110,13 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -726,6 +740,30 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.LoginUserRequest": {
+            "type": "object",
+            "required": [
+                "password"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "example": "hello@hi.com"
+                },
+                "password": {
+                    "type": "string",
+                    "maxLength": 72,
+                    "minLength": 8,
+                    "example": "****************"
+                },
+                "username": {
+                    "type": "string",
+                    "maxLength": 30,
+                    "minLength": 3,
+                    "example": "randomgee"
+                }
+            }
+        },
         "handler.RegisterUserRequest": {
             "type": "object",
             "required": [
@@ -740,8 +778,8 @@ const docTemplate = `{
                 },
                 "password": {
                     "type": "string",
-                    "maxLength": 30,
-                    "minLength": 6,
+                    "maxLength": 72,
+                    "minLength": 8,
                     "example": "myPass123"
                 },
                 "username": {
@@ -844,7 +882,7 @@ const docTemplate = `{
     },
     "securityDefinitions": {
         "BearerAuth": {
-            "description": "Paste: Bearer \u003cyour_login_token\u003e",
+            "description": "Paste: Bearer \u003cyour_login_token\u003e (capital B, then a space, then the login JWT)",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"

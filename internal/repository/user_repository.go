@@ -12,8 +12,10 @@ func GetUserByID(c context.Context, pool *pgxpool.Pool, id string) (*model.Users
 	defer cancel()
 
 	var query = `
-	SELECT id, email, password_hash, username, deleted_at, created_at, updated_at FROM 	users 
-	WHERE id = $1;
+	SELECT id, email, password_hash, username, deleted_at, created_at, updated_at 
+	FROM users 
+	WHERE id = $1 
+	AND deleted_at IS NULL;
 	`
 
 	var user model.Users
@@ -45,7 +47,8 @@ func GetUserByEmail(c context.Context, pool *pgxpool.Pool, email string) (*model
 
 	var query string = `SELECT id, email, password_hash, username, deleted_at, created_at, updated_at 
 	FROM users 
-	WHERE email = $1;
+	WHERE email = $1 
+	AND deleted_at IS NULL;
 	`
 
 	err = pool.QueryRow(ctx, query, email).Scan(
@@ -74,7 +77,8 @@ func GetUserByUsername(c context.Context, pool *pgxpool.Pool, username string) (
 
 	var query string = `SELECT id, email, password_hash, username, deleted_at, created_at, updated_at 
 	FROM users 
-	WHERE username = $1;
+	WHERE username = $1 
+	AND deleted_at IS NULL;
 	`
 
 	err = pool.QueryRow(ctx, query, username).Scan(

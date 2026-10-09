@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Promise111/url-shortener-go-gin/internal/config"
@@ -23,7 +24,7 @@ var InvalidCredentials = "Invalid credentials."
 
 type RegisterUserRequest struct {
 	Email    string `json:"email" binding:"required,email" example:"hello@hi.com"`
-	Password string `json:"password" binding:"required,min=6,max=30" example:"myPass123"`
+	Password string `json:"password" binding:"required,min=8,max=72" example:"myPass123"`
 	Username string `json:"username" binding:"required,min=3,max=30" example:"randomgee"`
 }
 
@@ -39,17 +40,19 @@ type UserSample struct {
 type CreateUserResponse struct {
 	Status  bool   `json:"status" example:"true"`
 	Message string `json:"message" example:"User created successfully."`
-	Data    UserSample
+	Data    UserSample `json:"data"`
 }
 
-type LoginRequest struct {
+type LoginUserRequest struct {
 	Email    string `json:"email" binding:"omitempty,email" example:"hello@hi.com"`
 	Username string `json:"username" binding:"omitempty,min=3,max=30" example:"randomgee"`
-	Password string `json:"password" binding:"required,min=6,max=30" example:"****************"`
+	Password string `json:"password" binding:"required,min=8,max=72" example:"****************"`
 }
 
-func (r *LoginRequest) ValidateEmailUsername() error {
-	if r.Email == "" && r.Username == "" {
+func (r *LoginUserRequest) ValidateEmailUsername() error {
+	var trimmedEmail = strings.TrimSpace(r.Email)
+	var trimmedUsername = strings.TrimSpace(r.Username)
+	if trimmedEmail == "" && trimmedUsername == "" {
 		return EmailOrUsernameRequired
 	}
 	return nil
@@ -62,7 +65,7 @@ type LoginResponseData struct {
 
 type LoginResponse struct {
 	Status bool `json:"status" example:"true"`
-	Data   LoginResponseData
+	Data   LoginResponseData `json:"data"`
 }
 
 func GenerateToken(user model.Users, cfg *config.Config) (string, error) {
@@ -90,6 +93,7 @@ func GenerateToken(user model.Users, cfg *config.Config) (string, error) {
 // @Param request body RegisterUserRequest true "Create user payload"
 // @Success 201 {object} CreateUserResponse
 // @Failure 400 {object} map[string]any
+// @Failure 409 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/auth/register [post]
 func RegisterUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
@@ -108,14 +112,14 @@ func RegisterUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		var user *model.Users
-		user, err = repository.CreateUser(c, pool, LowerTrim(input.Email), string(password_hash), LowerTrim(input.Username))
+		user, err = repository.CreateUser(c.Request.Context(), pool, LowerTrim(input.Email), string(password_hash), LowerTrim(input.Username))
 		if err != nil {
 			slog.Error("handler", "err", err.Error())
 			if database.IsUniqueViolationErr(err) {
 				WriteError(c, http.StatusConflict, "Email or username taken.")
 				return
 			}
-			WriteError(c, http.StatusBadRequest, InternalServerErrorMsg)
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
 			return
 		}
 
@@ -139,15 +143,16 @@ func RegisterUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param request body RegisterUserRequest true "Login payload"
-// @Success 201 {object} LoginResponse
+// @Param request body LoginUserRequest true "Login payload"
+// @Success 200 {object} LoginResponse
 // @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/auth/login [post]
 func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var err error
-		var input LoginRequest
+		var input LoginUserRequest
 		if err = c.ShouldBindJSON(&input); err != nil {
 			WriteError(c, http.StatusBadRequest, err.Error())
 			return
@@ -163,7 +168,7 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 		if email != "" {
 			user, err = repository.GetUserByEmail(c.Request.Context(), pool, email)
 		}
-		if username != "" {
+		if email == "" && username != "" {
 			user, err = repository.GetUserByUsername(c.Request.Context(), pool, username)
 		}
 		if err != nil {
@@ -189,7 +194,7 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusAccepted, LoginResponse{
+		c.JSON(http.StatusOK, LoginResponse{
 			Status: true,
 			Data: LoginResponseData{
 				User: UserSample{
