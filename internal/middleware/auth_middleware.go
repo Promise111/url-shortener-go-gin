@@ -52,17 +52,6 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		// if exp, ok := claims["exp"].(float64); !ok {
-		// 	var expirationTime = time.Unix(int64(exp), 0)
-		// 	if time.Now().After(expirationTime) {
-		// 		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-		// 			"status":  false,
-		// 			"message": "Token expired",
-		// 		})
-		// 		return
-		// 	}
-		// }
-
 		c.Set("user_id", userId)
 		c.Next()
 	}
