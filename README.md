@@ -17,7 +17,7 @@ Stack: **Go**, **Gin**, **PostgreSQL** (`pgx` pool), **bcrypt** + **JWT** (HS256
 - Health check
 - Swagger UI at `/swagger/index.html` with **BearerAuth** on protected link operations
 
-Not implemented yet: Redis cache, job queue, refresh tokens, email verify, rejecting soft-deleted users on login.
+Not implemented yet: Redis cache, job queue, refresh tokens, email verify.
 
 ## Why two kinds of URL
 
@@ -104,9 +104,9 @@ API base (default port): `http://localhost:8003`
 
 ## Auth
 
-Passwords are stored with **bcrypt**. Login looks up by **email or username** (at least one required; values are trimmed and lowercased to match register). Wrong user or password → **401** `"Invalid credentials."` Duplicate email/username on register → **409**.
+Passwords are stored with **bcrypt** (length **8–72**; 72 is bcrypt’s byte limit). Login looks up by **email or username** (at least one required after trim; values are lowercased to match register). If both are sent, **email wins**. Soft-deleted users (`deleted_at IS NOT NULL`) are treated as unknown (**401**). Wrong user or password → **401** `"Invalid credentials."` Duplicate email/username on register → **409**. Unexpected DB errors on register → **500**.
 
-Successful login (**202**) returns `data.user` (no password hash) and `data.token`.
+Successful login (**200**) returns `data.user` (no password hash; model tag `json:"-"`) and `data.token`.
 
 Send on every `/api/v1/links` request:
 
@@ -178,7 +178,7 @@ Error:
 }
 ```
 
-Email, password (6–30), username (3–30) required. Email and username are stored trimmed and lowercased.
+Email, password (8–72), username (3–30) required. Email and username are stored trimmed and lowercased.
 
 **201** — `data` is the user (`id`, `email`, `username`, timestamps; no password hash).  
 **400** — validation. **409** — email or username taken. **500**.
@@ -192,10 +192,10 @@ Email, password (6–30), username (3–30) required. Email and username are sto
 }
 ```
 
-Or `username` instead of (or with) `email`. Password is required.
+Or `username` instead of `email`. If both are present, email is used. Password is required (8–72).
 
-**202** — `{ "status": true, "data": { "user": { ... }, "token": "eyJ..." } }`.  
-**400** — neither email nor username, or bind/validation. **401** — unknown user or bad password. **500**.
+**200** — `{ "status": true, "data": { "user": { ... }, "token": "eyJ..." } }`.  
+**400** — neither email nor username, or bind/validation. **401** — unknown, soft-deleted, or bad password. **500**.
 
 ### `POST /api/v1/links`
 
@@ -372,7 +372,7 @@ Table `users` (migration `000004`):
 | `email` | unique, non-empty |
 | `password_hash` | bcrypt, never returned on register/login JSON |
 | `username` | unique, non-empty |
-| `deleted_at` | nullable (soft delete; login does not filter it yet) |
+| `deleted_at` | nullable soft delete; login/get-by-email/username/id require `deleted_at IS NULL` |
 | `created_at` / `updated_at` | defaults |
 
 `UNIQUE` on email and username already creates indexes. Extra duplicate indexes were dropped in `000006`.
