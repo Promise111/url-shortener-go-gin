@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 // @Summary Redirect by short code
@@ -23,7 +24,7 @@ import (
 // @Failure 410 {object} map[string]interface{}
 // @Failure 500 {object} map[string]interface{}
 // @Router /{shortCode} [get]
-func RedirectShortCodeHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+func RedirectShortCodeHandler(pool *pgxpool.Pool, rds *redis.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var shortCode string = c.Param("shortCode")
 		var err error

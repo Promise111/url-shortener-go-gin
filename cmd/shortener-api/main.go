@@ -49,11 +49,18 @@ func main() {
 	}
 	defer pool.Close()
 
+	rds, redisConErr := database.ConnectRedis(cfg.RedisADDR)
+	if redisConErr != nil {
+		slog.Error("Redis connection failed " + redisConErr.Error())
+		os.Exit(1)
+	}
+	defer rds.Close()
+
 	docs.SwaggerInfo.BasePath = "/"
 	docs.SwaggerInfo.Host = "localhost:" + cfg.Port
 	docs.SwaggerInfo.Schemes = []string{"http"}
 
-	var r = router.Router(pool, cfg)
+	var r = router.Router(pool, cfg, rds)
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	r.Run(":" + cfg.Port)
 }

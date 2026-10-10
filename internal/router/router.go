@@ -8,6 +8,7 @@ import (
 	"github.com/Promise111/url-shortener-go-gin/internal/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/time/rate"
 )
 
@@ -18,7 +19,7 @@ const (
 	LinkPrefix   = "/links"
 )
 
-func Router(pool *pgxpool.Pool, cfg *config.Config) *gin.Engine {
+func Router(pool *pgxpool.Pool, cfg *config.Config, rds *redis.Client) *gin.Engine {
 	var r = gin.Default()
 
 	createLimiter := middleware.NewIPLimiter(rate.Every(6*time.Second), 3)
@@ -47,7 +48,7 @@ func Router(pool *pgxpool.Pool, cfg *config.Config) *gin.Engine {
 	}
 
 	// public
-	r.GET("/:shortCode", redirectLimiter.RateLimiterMiddleware(), handler.RedirectShortCodeHandler(pool))
+	r.GET("/:shortCode", redirectLimiter.RateLimiterMiddleware(), handler.RedirectShortCodeHandler(pool, rds))
 
 	return r
 }
