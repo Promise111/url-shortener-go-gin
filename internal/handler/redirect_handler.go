@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -30,15 +32,48 @@ func RedirectShortCodeHandler(pool *pgxpool.Pool, rds *redis.Client) gin.Handler
 		var err error
 		var link *model.Links
 		var now time.Time = time.Now().UTC()
-		link, err = repository.GetLinkByShortCodeVisitor(c.Request.Context(), pool, shortCode)
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				WriteError(c, http.StatusNotFound, "Link record not found.")
+		var cacheKey string = "link:" + shortCode
+
+		strCmd := rds.Get(c.Request.Context(), cacheKey)
+		cacheVal, cacheErr := strCmd.Result()
+		if cacheErr == nil {
+			var cached model.Links
+			unmarshalError := json.Unmarshal([]byte(cacheVal), &cached)
+			if unmarshalError != nil {
+				slog.Error("RedirectStrCmd - failed to get cache key " + unmarshalError.Error())
+			} else {
+				link = &cached
+			}
+		} else if !errors.Is(cacheErr, redis.Nil) {
+			slog.Error("Redirect get key " + cacheErr.Error())
+		}
+
+		if link == nil {
+			link, err = repository.GetLinkByShortCodeVisitor(c.Request.Context(), pool, shortCode)
+			if err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					WriteError(c, http.StatusNotFound, "Link record not found.")
+					return
+				}
+				WriteError(c, http.StatusInternalServerError, "Something went wrong!")
 				return
 			}
-			WriteError(c, http.StatusInternalServerError, "Something went wrong!")
-			return
+			var cacheString, marshalErr = json.Marshal(model.Links{
+				LongURL:   link.LongURL,
+				ExpiresAt: link.ExpiresAt,
+				MaxClicks: link.MaxClicks,
+				Status:    link.Status,
+			})
+			if marshalErr != nil {
+				slog.Error("Redirect Short Code " + marshalErr.Error())
+			} else {
+				setErr := rds.Set(c.Request.Context(), cacheKey, cacheString, 1*time.Hour).Err()
+				if setErr != nil {
+					slog.Error("Redirect short code, failed to set key " + setErr.Error())
+				}
+			}
 		}
+
 		if link.Status == model.StatusDisabled {
 			WriteError(c, http.StatusGone, "This link has been disabled.")
 			return
