@@ -37,8 +37,8 @@ func Router(pool *pgxpool.Pool, cfg *config.Config, rds *redis.Client) *gin.Engi
 		link.GET("", handler.GetLinksHandler(pool))
 		link.GET("/code/:shortCode", handler.GetLinkByShortHandler(pool))
 		link.GET("/:id", handler.GetLinkByIDHandler(pool))
-		link.DELETE("/:id", handler.DeleteLinkByIDHandler(pool))
-		link.PATCH("/:id", handler.UpdateLinksByIdHandler(pool))
+		link.DELETE("/:id", handler.DeleteLinkByIDHandler(pool, rds))
+		link.PATCH("/:id", handler.UpdateLinksByIdHandler(pool, rds))
 	}
 
 	{

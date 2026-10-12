@@ -201,26 +201,24 @@ func UpdateLinks(c context.Context, pool *pgxpool.Pool, longURL string, expiresA
 	return &link, nil
 }
 
-func DeleteLink(c context.Context, pool *pgxpool.Pool, id int64, userID string) error {
+func DeleteLink(c context.Context, pool *pgxpool.Pool, id int64, userID string) (string, error) {
 	ctx, cancel := CtxTimeout(c)
 	defer cancel()
 
 	var query string = `
 	DELETE FROM links 
 	WHERE id = $1 
-	AND user_id = $2
+	AND user_id = $2 
+	RETURNING short_code
 	`
 
-	cmdTag, err := pool.Exec(ctx, query, id, userID)
+	var shortCode string
+	err := pool.QueryRow(ctx, query, id, userID).Scan(&shortCode)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	if cmdTag.RowsAffected() == 0 {
-		return pgx.ErrNoRows
-	}
-
-	return nil
+	return shortCode, nil
 }
 
 func GetLinkByShortCode(c context.Context, pool *pgxpool.Pool, shortCode string, userID string) (*model.Links, error) {

@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 var ErrExpiresAtInPast = errors.New("expires_at must be in the future")
@@ -514,7 +515,7 @@ func GetLinkByShortHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/links/{id} [delete]
 // @Security BearerAuth
-func DeleteLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+func DeleteLinkByIDHandler(pool *pgxpool.Pool, rds *redis.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var err error
 		var id int64
@@ -532,7 +533,9 @@ func DeleteLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		err = repository.DeleteLink(c.Request.Context(), pool, id, userID)
+		var shortCode string
+
+		shortCode, err = repository.DeleteLink(c.Request.Context(), pool, id, userID)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				WriteError(c, http.StatusNotFound, "Link not found")
@@ -540,6 +543,11 @@ func DeleteLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			}
 			WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
 			return
+		}
+		var cacheKey = "link:" + shortCode
+		deleteCacheErr := rds.Del(c.Request.Context(), cacheKey).Err()
+		if deleteCacheErr != nil {
+			slog.Error("DeleteById - failed to delete cache " + deleteCacheErr.Error())
 		}
 
 		c.Status(http.StatusNoContent)
@@ -560,7 +568,7 @@ func DeleteLinkByIDHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/links/{id} [patch]
 // @Security BearerAuth
-func UpdateLinksByIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
+func UpdateLinksByIdHandler(pool *pgxpool.Pool, rds *redis.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var id int64
 		var err error
@@ -588,6 +596,8 @@ func UpdateLinksByIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			WriteError(c, http.StatusInternalServerError, InternalServerErrorMessage)
 			return
 		}
+
+		var cacheKey = "link:" + link.ShortCode
 
 		var req UpdateLinkRequest
 		if err = c.ShouldBindJSON(&req); err != nil {
@@ -629,6 +639,13 @@ func UpdateLinksByIdHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		if err != nil {
 			WriteError(c, http.StatusInternalServerError, err.Error())
 			return
+		}
+
+		// delete cache from redis
+		deleteErr := rds.Del(c.Request.Context(), cacheKey).Err()
+
+		if deleteErr != nil {
+			slog.Error("updatelink - failed to delete redis key " + deleteErr.Error())
 		}
 
 		c.JSON(http.StatusOK, UpdateLinkResponse{
