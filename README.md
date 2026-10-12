@@ -18,7 +18,7 @@ Stack: **Go**, **Gin**, **PostgreSQL** (`pgx` pool), **Redis** (`go-redis` v9) f
 - Health check
 - Swagger UI at `/swagger/index.html` with **BearerAuth** on protected link operations
 
-Not implemented yet: job queue (asynq), Redis token-bucket (Lua), refresh tokens, email verify.
+Not implemented yet: job queue (asynq), refresh tokens, email verify.
 
 ## Why two kinds of URL
 
