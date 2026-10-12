@@ -9,7 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
-	"golang.org/x/time/rate"
 )
 
 const (
@@ -22,10 +21,10 @@ const (
 func Router(pool *pgxpool.Pool, cfg *config.Config, rds *redis.Client) *gin.Engine {
 	var r = gin.Default()
 
-	createLimiter := middleware.NewIPLimiter(rate.Every(6*time.Second), 3)
-	redirectLimiter := middleware.NewIPLimiter(5, 10)
-
 	api := r.Group(APIPrefix)
+
+	var redirectLimiter = middleware.NewFixLimiter(6, 1*time.Second, middleware.Redirect)
+	var createLimiter = middleware.NewFixLimiter(10, 1*time.Minute, middleware.Create)
 
 	{
 		api.GET(HealthPrefix, handler.HealthHandler)
@@ -33,7 +32,7 @@ func Router(pool *pgxpool.Pool, cfg *config.Config, rds *redis.Client) *gin.Engi
 
 	{
 		link := api.Group(LinkPrefix, middleware.AuthMiddleware(cfg))
-		link.POST("", createLimiter.RateLimiterMiddleware(), handler.CreateLinkHandler(pool))
+		link.POST("", createLimiter.FixWindowLimiterMiddleware(rds), handler.CreateLinkHandler(pool))
 		link.GET("", handler.GetLinksHandler(pool))
 		link.GET("/code/:shortCode", handler.GetLinkByShortHandler(pool))
 		link.GET("/:id", handler.GetLinkByIDHandler(pool))
@@ -48,7 +47,7 @@ func Router(pool *pgxpool.Pool, cfg *config.Config, rds *redis.Client) *gin.Engi
 	}
 
 	// public
-	r.GET("/:shortCode", redirectLimiter.RateLimiterMiddleware(), handler.RedirectShortCodeHandler(pool, rds))
+	r.GET("/:shortCode", redirectLimiter.FixWindowLimiterMiddleware(rds), handler.RedirectShortCodeHandler(pool, rds))
 
 	return r
 }
