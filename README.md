@@ -2,7 +2,7 @@
 
 HTTP API that stores long URLs, issues a short code, and redirects public visitors to the original address. Link CRUD belongs to the logged-in user.
 
-Stack: **Go**, **Gin**, **PostgreSQL** (`pgx` pool), **Redis** (`go-redis` v9) for redirect cache-aside, **bcrypt** + **JWT** (HS256), **Swag** for OpenAPI, **Air** for live reload.
+Stack: **Go**, **Gin**, **PostgreSQL** (`pgx` pool), **Redis** (`go-redis` v9) for redirect cache-aside and per-IP rate limits, **bcrypt** + **JWT** (HS256), **Swag** for OpenAPI, **Air** for live reload.
 
 ## What works today
 
@@ -14,11 +14,11 @@ Stack: **Go**, **Gin**, **PostgreSQL** (`pgx` pool), **Redis** (`go-redis` v9) f
 - Public redirect: `GET /{shortCode}` → **307 Temporary Redirect** (no auth). Unknown codes are **404**. Disabled, expired (time or click cap), or a lost increment race are **410 Gone**. Clicks increment only on 307
 - Redirect lookup is **cache-aside** in Redis (`link:{shortCode}`, TTL 1 hour). Payload is `long_url`, `expires_at`, `max_clicks`, `status` — not `clicks`. Miss or Redis error falls through to Postgres; a successful miss is written back. Failed `SET` is logged; the 307 still happens. Successful **PATCH** and **DELETE** `DEL` that key (delete uses `RETURNING short_code`)
 - Create generates a 10-character base62 code and retries the insert up to **3** times if Postgres reports a unique `short_code` (`23505`). Optional custom `short_code` on create: alphanumeric, 3–20 chars, stored lowercased; reserved words **422**; already taken **409**
-- Per-IP rate limits on **create** and **public redirect** (in-memory token bucket). Over limit → **429**
+- Per-IP rate limits on **create** and **public redirect** (Redis fixed window, `INCR` + TTL). Over limit → **429**. Redis errors after startup fail open (request is allowed). An unused in-process token-bucket file remains as a reference and is not wired
 - Health check
 - Swagger UI at `/swagger/index.html` with **BearerAuth** on protected link operations
 
-Not implemented yet: Redis-backed rate limit, job queue (asynq), refresh tokens, email verify.
+Not implemented yet: job queue (asynq), Redis token-bucket (Lua), refresh tokens, email verify.
 
 ## Why two kinds of URL
 
@@ -49,7 +49,7 @@ internal/
     redirect_handler.go  # cache-aside then 410 gates then increment then 307
     health_handler.go
     response.go
-  middleware/          # JWT auth + per-IP rate limiter (still in-process)
+  middleware/          # JWT auth; Redis fixed-window limiter (live); in-process token bucket (unwired)
   model/               # Links, Users
   repository/          # SQL (takes context.Context; 5s timeout on the request ctx)
   router/              # Gin routes
@@ -57,7 +57,7 @@ internal/
 migrations/            # Postgres DDL (000001–000006)
 ```
 
-Request flow: **router → auth middleware (link group) → handler → repository → Postgres**. Public redirect: **Redis GET → (miss) Postgres → SET → 410 gates → increment → 307**. Handlers pass `c.Request.Context()`; the repository wraps SQL with a 5 second timeout.
+Request flow: **router → auth middleware (link group) → handler → repository → Postgres**. Create and public redirect run the Redis limiter first (`INCR rl:{prefix}:{ip}`). Public redirect then: **Redis GET `link:` → (miss) Postgres → SET → 410 gates → increment → 307**. Handlers pass `c.Request.Context()`; the repository wraps SQL with a 5 second timeout.
 
 ## Prerequisites
 
@@ -148,7 +148,7 @@ Error:
 **429** (create and public redirect only):
 
 ```json
-{ "status": false, "message": "Too many requests" }
+{ "status": false, "message": "Too many requests." }
 ```
 
 | Method | Path | Auth | Action |
@@ -325,21 +325,26 @@ Redirect-only, cache-aside (`github.com/redis/go-redis/v9`). Startup `Ping` uses
 | Key | Value | TTL | Written | Deleted |
 |---|---|---|---|---|
 | `link:{shortCode}` | JSON of `long_url`, `expires_at`, `max_clicks`, `status` | 1 hour | after a Postgres redirect lookup | successful PATCH and DELETE |
+| `rl:create:{ip}` / `rl:redirect:{ip}` | integer hit count | window (see rate limiting) | `INCR` on limited routes | expires with the window |
 
-`clicks` stays in Postgres. Increment is still a SQL `UPDATE` on every 307. Owner JSON GET/list does not read this cache.
+`clicks` stays in Postgres. Increment is still a SQL `UPDATE` on every 307. Owner JSON GET/list does not read this cache. Rate-limit keys are not the link cache; do not `DEL` them on PATCH/DELETE.
 
 ## Rate limiting
 
-In-memory token buckets (`golang.org/x/time/rate`), **one bucket per client IP** (`c.ClientIP()`). Create and redirect each have their own store and policy. Health, auth, list, get, patch, and delete are **not** limited. This is **not** Redis yet (two API processes would each have their own map).
+Live path: Redis **fixed window** (`INCR`, `Expire` only when the count is `1`). One counter per client IP (`c.ClientIP()`) and route prefix so create and redirect do not share a budget. Health, auth, list, get, patch, and delete are **not** limited. Two API processes share the same Redis keys.
 
-| Route | Refill | Burst |
-|---|---|---|
-| `POST /api/v1/links` | 1 token every 6 seconds (`rate.Every(6s)`) | 3 |
-| `GET /{shortCode}` | 5 tokens per second | 10 |
+| Route | Key | Max | Window |
+|---|---|---|---|
+| `POST /api/v1/links` | `rl:create:{ip}` | 10 | 1 minute |
+| `GET /{shortCode}` | `rl:redirect:{ip}` | 6 | 1 second |
 
-Over limit → **429** `{ "status": false, "message": "Too many requests" }`. The handler (and Postgres) does not run.
+Over limit → **429** `{ "status": false, "message": "Too many requests." }`. The handler (and Postgres) does not run.
 
-Idle IPs are dropped from the map after **10 minutes** of no hits (janitor every **1 minute**). A returning IP gets a fresh limiter (full burst). Locally, curl and the browser often share `127.0.0.1`, so they share one create bucket. Behind a reverse proxy, configure Gin trusted proxies or every client may look like one IP.
+`INCR` never returns `redis.Nil` (a miss is count `1`). If `INCR` fails after startup, the error is logged and the request is **allowed** (fail open). If `Expire` fails, that is logged; the request still goes through the max check. A key left without a TTL can 429 that IP until Redis drops it.
+
+At the edge of a window an IP can fire `max` at the end of one window and `max` again at the start of the next. That is expected for fixed window.
+
+`rate_limiter_middleware.go` is the old in-process token bucket (`golang.org/x/time/rate`). It is **not** attached in the router. Locally, curl and the browser often share `127.0.0.1`, so they share one create counter. Behind a reverse proxy, configure Gin trusted proxies or every client may look like one IP.
 
 ## Swagger
 
