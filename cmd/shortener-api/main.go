@@ -7,7 +7,9 @@ import (
 	docs "github.com/Promise111/url-shortener-go-gin/cmd/shortener-api/docs"
 	"github.com/Promise111/url-shortener-go-gin/internal/config"
 	"github.com/Promise111/url-shortener-go-gin/internal/database"
+	"github.com/Promise111/url-shortener-go-gin/internal/queue"
 	"github.com/Promise111/url-shortener-go-gin/internal/router"
+	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -56,11 +58,14 @@ func main() {
 	}
 	defer rds.Close()
 
+	var asynqClient *asynq.Client = queue.NewClient(cfg.RedisADDR)
+	defer asynqClient.Close()
+
 	docs.SwaggerInfo.BasePath = "/"
 	docs.SwaggerInfo.Host = "localhost:" + cfg.Port
 	docs.SwaggerInfo.Schemes = []string{"http"}
 
-	var r = router.Router(pool, cfg, rds)
+	var r = router.Router(pool, cfg, rds, asynqClient)
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	r.Run(":" + cfg.Port)
 }
