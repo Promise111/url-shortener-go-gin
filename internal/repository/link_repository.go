@@ -276,3 +276,26 @@ func IncrementClickCount(c context.Context, pool *pgxpool.Pool, shortCode string
 
 	return nil
 }
+
+func ExpireLink(c context.Context, pool *pgxpool.Pool) error {
+	ctx, cancel := CtxTimeout(c)
+	defer cancel()
+
+	var err error
+
+	var query = `
+	UPDATE links 
+	SET status = 'expired', updated_at = NOW()
+	WHERE status = 'active' 
+	AND expires_at IS NOT NULL 
+	AND expires_at <= NOW();
+	`
+
+	_, err = pool.Exec(ctx, query)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

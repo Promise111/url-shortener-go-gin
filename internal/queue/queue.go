@@ -2,6 +2,7 @@ package queue
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/hibiken/asynq"
 )
@@ -12,6 +13,7 @@ type IncrementPayload struct {
 
 const (
 	TaskIncrement = "redirect_increment"
+	TaskExpire    = "expire_link"
 )
 
 func IncrementLinkTask(shortCode string) (*asynq.Task, error) {
@@ -21,6 +23,10 @@ func IncrementLinkTask(shortCode string) (*asynq.Task, error) {
 	}
 
 	return asynq.NewTask(TaskIncrement, body), nil
+}
+
+func ExpireLinkTask() (*asynq.Task, error) {
+	return asynq.NewTask(TaskExpire, nil, asynq.MaxRetry(5), asynq.Timeout(time.Second*20)), nil
 }
 
 func NewClient(redisAddr string) *asynq.Client {

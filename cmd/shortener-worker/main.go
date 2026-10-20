@@ -38,6 +38,7 @@ func main() {
 	)
 
 	mux := asynq.NewServeMux()
+
 	mux.HandleFunc(queue.TaskIncrement, func(ctx context.Context, task *asynq.Task) error {
 		var p queue.IncrementPayload
 		var unmarshalError error
@@ -46,7 +47,6 @@ func main() {
 			return unmarshalError
 		}
 
-		slog.Info("Incrementing")
 		if incrementLinkClickCountError := repository.IncrementClickCount(ctx, pool, p.ShortCode); incrementLinkClickCountError != nil {
 			if errors.Is(incrementLinkClickCountError, pgx.ErrNoRows) {
 				slog.Info("increment skipped (gone or at cap) " + p.ShortCode)
@@ -56,6 +56,35 @@ func main() {
 		}
 		return nil
 	})
+
+	mux.HandleFunc(queue.TaskExpire, func(ctx context.Context, task *asynq.Task) error {
+		expireLinkErr := repository.ExpireLink(ctx, pool)
+
+		if expireLinkErr != nil {
+			return expireLinkErr
+		}
+
+		return nil
+	})
+
+	scheduler := asynq.NewScheduler(asynq.RedisClientOpt{Addr: cfg.RedisADDR}, nil)
+
+	expireTask, _ := queue.ExpireLinkTask()
+
+	entryID, schedulerErr := scheduler.Register("*/1 * * * *", expireTask)
+	if schedulerErr != nil {
+		slog.Error("schedulerErr", "msg", schedulerErr)
+		os.Exit(1)
+	}
+	slog.Info("entryID", "msg", entryID)
+
+	go func() {
+		runScheduleErr := scheduler.Run()
+		if runScheduleErr != nil {
+			slog.Error("runScheduleErr", "msg", runScheduleErr)
+			os.Exit(1)
+		}
+	}()
 
 	if err := srv.Run(mux); err != nil {
 		os.Exit(1)
