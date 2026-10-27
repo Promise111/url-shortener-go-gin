@@ -38,8 +38,8 @@ type UserSample struct {
 }
 
 type CreateUserResponse struct {
-	Status  bool   `json:"status" example:"true"`
-	Message string `json:"message" example:"User created successfully."`
+	Status  bool       `json:"status" example:"true"`
+	Message string     `json:"message" example:"User created successfully."`
 	Data    UserSample `json:"data"`
 }
 
@@ -59,21 +59,51 @@ func (r *LoginUserRequest) ValidateEmailUsername() error {
 }
 
 type LoginResponseData struct {
-	User  UserSample `json:"user"`
-	Token string     `json:"token" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InByb21pc2VpaHVubmFAaGkuY29tIiwiZXhwIjoxNzkxNDg2NzgzLCJpZCI6IjUxMWE3NDNhLWFlNGItNGZhMC1hYjQzLTUxOTM3ZTUxMGM2OSIsInVzZXJuYW1lIjoicmFuZG9tZ2VlIn0.n5vU3bqtslWmIlCxlUNOlpb9V_CxXWHgM53Ha2ZbmNY"`
+	User         UserSample `json:"user"`
+	AccessToken  string     `json:"accessToken" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyNzkxNDg2NzgzLCJpZCI6IjUxMWE3NDNhLWFlNGItNGZhMC1hYjQzLTUxOTM3ZTUxMGM2OSIsInVzZ0.n5vU3bqtslWmIlCxlUNOlpb9V_CxXWHgM53Ha2ZbmNY"`
+	RefreshToken string     `json:"refreshToken" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFzkxNDg2NzgzLCJpZCI6IjUxMWE3NDNhLWFlNGItNGZhMxMGM2OSIsInVzZXJuYW1lIjoicmFuZG9tZ2VlIn0.n5vU3bqUNOlpb9V_CxXWHgM53Ha2ZbmNY"`
 }
 
 type LoginResponse struct {
-	Status bool `json:"status" example:"true"`
+	Status bool              `json:"status" example:"true"`
 	Data   LoginResponseData `json:"data"`
 }
 
-func GenerateToken(user model.Users, cfg *config.Config) (string, error) {
+type TokenType string
+
+const (
+	TokenTypeAccess  TokenType = "access"
+	TokenTypeRefresh TokenType = "refresh"
+)
+
+func genTokenExpiration(tokenType TokenType) int64 {
+	// if tokenType == TokenTypeAccess {
+	// 	return time.Now().Add(time.Minute * 15).Unix()
+	// } else if tokenType == TokenTypeRefresh {
+	// 	return time.Now().Add(time.Hour * 168).Unix()
+	// } else {
+	// 	return time.Now().Add(time.Minute * 15).Unix()
+	// }
+
+	switch tokenType {
+	case TokenTypeAccess:
+		return time.Now().Add(time.Minute * 15).Unix()
+	case TokenTypeRefresh:
+		return time.Now().Add(time.Hour * 168).Unix()
+	default:
+		return time.Now().Add(time.Minute * 15).Unix()
+	}
+}
+
+func GenerateToken(user model.Users, cfg *config.Config, tokenType TokenType) (string, error) {
+	var expiration = genTokenExpiration(tokenType)
+
 	var claims jwt.MapClaims = jwt.MapClaims{
-		"id":       user.ID,
-		"email":    user.Email,
-		"username": user.Username,
-		"exp":      time.Now().Add(5 * time.Hour).Unix(),
+		"id":        user.ID,
+		"email":     user.Email,
+		"username":  user.Username,
+		"exp":       expiration,
+		"tokenType": tokenType,
 	}
 
 	var token *jwt.Token = jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -185,10 +215,16 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		var token string
+		var accessToken string
+		var refreshToken string
 
-		token, err = GenerateToken(*user, cfg)
-		if err != nil {
+		if accessToken, err = GenerateToken(*user, cfg, TokenTypeAccess); err != nil {
+			slog.Error("login", "err", err.Error())
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		}
+
+		if refreshToken, err = GenerateToken(*user, cfg, TokenTypeRefresh); err != nil {
 			slog.Error("login", "err", err.Error())
 			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
 			return
@@ -205,7 +241,8 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 					CreatedAt: user.CreatedAt,
 					UpdatedAt: user.UpdatedAt,
 				},
-				Token: token,
+				AccessToken:  accessToken,
+				RefreshToken: refreshToken,
 			},
 		})
 	}

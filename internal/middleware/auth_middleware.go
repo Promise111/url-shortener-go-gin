@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/Promise111/url-shortener-go-gin/internal/config"
+	"github.com/Promise111/url-shortener-go-gin/internal/handler"
 	"github.com/gin-gonic/gin"
 	jwt "github.com/golang-jwt/jwt/v5"
 )
@@ -39,6 +40,23 @@ func AuthMiddleware(cfg *config.Config) gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"status":  false,
 				"message": "Invalid token claims",
+			})
+			return
+		}
+
+		tokenType, ok := claims["tokenType"].(string)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "Invalid token claims",
+			})
+			return
+		}
+
+		if tokenType != string(handler.TokenTypeAccess) {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "Invalid token",
 			})
 			return
 		}
