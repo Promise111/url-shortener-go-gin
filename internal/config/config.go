@@ -12,6 +12,8 @@ type Config struct {
 	JWTSecret   string
 	Port        string
 	RedisADDR   string
+	RefreshExpiration string
+	AccessExpiration string
 }
 
 func Load() (*Config, error) {
@@ -27,6 +29,8 @@ func Load() (*Config, error) {
 		JWTSecret:   os.Getenv("JWT_SECRET"),
 		Port:        os.Getenv("PORT"),
 		RedisADDR:   os.Getenv("REDIS_ADDR"),
+		RefreshExpiration: os.Getenv("REFRESH_EXPIRATION"),
+		AccessExpiration: os.Getenv("ACCESS_EXPIRATION"),
 	}
 
 	return config, err

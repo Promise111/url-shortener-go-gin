@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -76,27 +77,29 @@ const (
 	TokenTypeRefresh TokenType = "refresh"
 )
 
-func genTokenExpiration(tokenType TokenType) int64 {
-	// if tokenType == TokenTypeAccess {
-	// 	return time.Now().Add(time.Minute * 15).Unix()
-	// } else if tokenType == TokenTypeRefresh {
-	// 	return time.Now().Add(time.Hour * 168).Unix()
-	// } else {
-	// 	return time.Now().Add(time.Minute * 15).Unix()
-	// }
-
+func genTokenExpiration(tokenType TokenType, accessSeconds int, refreshSeconds int) int64 {
 	switch tokenType {
 	case TokenTypeAccess:
-		return time.Now().Add(time.Minute * 15).Unix()
+		return time.Now().Add(time.Second * time.Duration(accessSeconds)).Unix()
 	case TokenTypeRefresh:
-		return time.Now().Add(time.Hour * 168).Unix()
+		return time.Now().Add(time.Second * time.Duration(refreshSeconds)).Unix()
 	default:
 		return time.Now().Add(time.Minute * 15).Unix()
 	}
 }
 
 func GenerateToken(user model.Users, cfg *config.Config, tokenType TokenType) (string, error) {
-	var expiration = genTokenExpiration(tokenType)
+	var accessSeconds, accessSecondsErr = strconv.Atoi(cfg.AccessExpiration)
+	if accessSecondsErr != nil {
+		return "", accessSecondsErr
+	}
+
+	var refreshSeconds, refreshSecondsErr = strconv.Atoi(cfg.RefreshExpiration)
+	if refreshSecondsErr != nil {
+		return "", refreshSecondsErr
+	}
+
+	var expiration = genTokenExpiration(tokenType, accessSeconds, refreshSeconds)
 
 	var claims jwt.MapClaims = jwt.MapClaims{
 		"id":        user.ID,
