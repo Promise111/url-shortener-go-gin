@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -11,9 +13,11 @@ import (
 	"github.com/Promise111/url-shortener-go-gin/internal/config"
 	"github.com/Promise111/url-shortener-go-gin/internal/database"
 	"github.com/Promise111/url-shortener-go-gin/internal/model"
+	"github.com/Promise111/url-shortener-go-gin/internal/queue"
 	"github.com/Promise111/url-shortener-go-gin/internal/repository"
 	"github.com/gin-gonic/gin"
 	jwt "github.com/golang-jwt/jwt/v5"
+	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
@@ -182,7 +186,7 @@ func RegisterUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/auth/login [post]
-func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
+func LoginHandler(pool *pgxpool.Pool, cfg *config.Config, asynqClient *asynq.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var err error
 		var input LoginUserRequest
@@ -233,6 +237,29 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
+		var refreshHash = hashRefreshToken(refreshToken)
+		refreshExpSeconds, refreshExpErr := strconv.Atoi(cfg.RefreshExpiration)
+		if refreshExpErr != nil {
+			slog.Error("refresh token hash", "error", refreshExpErr)
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		}
+		var expiration = time.Now().Add(time.Second * time.Duration(refreshExpSeconds))
+
+		userID := user.ID
+
+		// hand of refresh token db persistence to queue so our handler has one less thing to worry about
+		task, taskErr := queue.PersistRefreshTokenTask(refreshHash, expiration, userID)
+		if taskErr != nil {
+			slog.Error("Asynq persist refresh token", "error", taskErr)
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		} else if _, taskQueueErr := asynqClient.Enqueue(task); taskQueueErr != nil {
+			slog.Error("Task Queue Error", "error", taskQueueErr)
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		}
+
 		c.JSON(http.StatusOK, LoginResponse{
 			Status: true,
 			Data: LoginResponseData{
@@ -249,4 +276,9 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 			},
 		})
 	}
+}
+
+func hashRefreshToken(token string) string {
+	hash := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(hash[:])
 }

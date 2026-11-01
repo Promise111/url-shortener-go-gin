@@ -44,7 +44,7 @@ func Router(pool *pgxpool.Pool, cfg *config.Config, rds *redis.Client, asynqClie
 	{
 		auth := api.Group(AuthPrefix)
 		auth.POST("/register", handler.RegisterUserHandler(pool))
-		auth.POST("/login", handler.LoginHandler(pool, cfg))
+		auth.POST("/login", handler.LoginHandler(pool, cfg, asynqClient))
 	}
 
 	// public

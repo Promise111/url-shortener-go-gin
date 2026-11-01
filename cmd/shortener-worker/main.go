@@ -67,15 +67,49 @@ func main() {
 		return nil
 	})
 
+	mux.HandleFunc(queue.TaskPersistRefresh, func(ctx context.Context, task *asynq.Task) error {
+		var p queue.RefreshHashPayload
+		var err error
+		err = json.Unmarshal(task.Payload(), &p)
+		if err != nil {
+			return err
+		}
+
+		if _, persistRefreshHashError := repository.PersistRefreshToken(ctx, pool, p.RefreshHash, p.UserID, p.Expiration); persistRefreshHashError != nil {
+			return persistRefreshHashError
+		}
+
+		return nil
+	})
+
+	mux.HandleFunc(queue.TaskClearExpiredRefresh, func(ctx context.Context, task *asynq.Task) error {
+		clearExpiredRefreshHash := repository.DeleteExpiredRefreshTokens(ctx, pool)
+		if clearExpiredRefreshHash != nil {
+			return clearExpiredRefreshHash
+		}
+
+		return nil
+	})
+
 	scheduler := asynq.NewScheduler(asynq.RedisClientOpt{Addr: cfg.RedisADDR}, nil)
 
-	expireTask, _ := queue.ExpireLinkTask()
+	expireTask := queue.ExpireLinkTask()
+
+	clearExpiredRfreshHashTask, _ := queue.ClearExpiredRefreshHashTask()
 
 	entryID, schedulerErr := scheduler.Register("*/1 * * * *", expireTask)
 	if schedulerErr != nil {
-		slog.Error("schedulerErr", "msg", schedulerErr)
+		slog.Error("schedulerErr", "error", schedulerErr)
 		os.Exit(1)
 	}
+
+	_, schedulerClearExpRefreshErr := scheduler.Register("0 0 * * *", clearExpiredRfreshHashTask)
+
+	if schedulerClearExpRefreshErr != nil {
+		slog.Error("entryIDClearExpiredRefreshHash", "error", schedulerClearExpRefreshErr)
+		os.Exit(1)
+	}
+
 	slog.Info("entryID", "msg", entryID)
 
 	go func() {
