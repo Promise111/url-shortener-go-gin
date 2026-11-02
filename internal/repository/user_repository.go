@@ -12,7 +12,7 @@ func GetUserByID(c context.Context, pool *pgxpool.Pool, id string) (*model.Users
 	defer cancel()
 
 	var query = `
-	SELECT id, email, password_hash, username, deleted_at, created_at, updated_at 
+	SELECT id, email, password_hash, username, deleted_at, email_verified_at, created_at, updated_at 
 	FROM users 
 	WHERE id = $1 
 	AND deleted_at IS NULL;
@@ -27,6 +27,7 @@ func GetUserByID(c context.Context, pool *pgxpool.Pool, id string) (*model.Users
 		&user.PasswordHash,
 		&user.Username,
 		&user.DeletedAt,
+		&user.EmailVerifiedAt,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -45,7 +46,7 @@ func GetUserByEmail(c context.Context, pool *pgxpool.Pool, email string) (*model
 	var err error
 	var user model.Users
 
-	var query string = `SELECT id, email, password_hash, username, deleted_at, created_at, updated_at 
+	var query string = `SELECT id, email, password_hash, username, deleted_at, email_verified_at, created_at, updated_at 
 	FROM users 
 	WHERE email = $1 
 	AND deleted_at IS NULL;
@@ -57,6 +58,7 @@ func GetUserByEmail(c context.Context, pool *pgxpool.Pool, email string) (*model
 		&user.PasswordHash,
 		&user.Username,
 		&user.DeletedAt,
+		&user.EmailVerifiedAt,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -75,7 +77,7 @@ func GetUserByUsername(c context.Context, pool *pgxpool.Pool, username string) (
 	var err error
 	var user model.Users
 
-	var query string = `SELECT id, email, password_hash, username, deleted_at, created_at, updated_at 
+	var query string = `SELECT id, email, password_hash, username, deleted_at, email_verified_at, created_at, updated_at 
 	FROM users 
 	WHERE username = $1 
 	AND deleted_at IS NULL;
@@ -87,6 +89,7 @@ func GetUserByUsername(c context.Context, pool *pgxpool.Pool, username string) (
 		&user.PasswordHash,
 		&user.Username,
 		&user.DeletedAt,
+		&user.EmailVerifiedAt,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
@@ -108,7 +111,7 @@ func CreateUser(c context.Context, pool *pgxpool.Pool, email string, password_ha
 	var query string = `
 	INSERT INTO  users (email, password_hash, username) 
 	VALUES ($1, $2, $3) 
-	RETURNING id, email, password_hash, username, deleted_at, created_at, updated_at;
+	RETURNING id, email, password_hash, username, deleted_at, email_verified_at, created_at, updated_at;
 	`
 
 	err = pool.QueryRow(ctx, query, email, password_hash, username).Scan(
@@ -117,6 +120,7 @@ func CreateUser(c context.Context, pool *pgxpool.Pool, email string, password_ha
 		&user.PasswordHash,
 		&user.Username,
 		&user.DeletedAt,
+		&user.EmailVerifiedAt,
 		&user.CreatedAt,
 		&user.UpdatedAt,
 	)
