@@ -24,7 +24,7 @@ const docTemplate = `{
     "paths": {
         "/api/v1/auth/login": {
             "post": {
-                "description": "Allow user login and generate access code",
+                "description": "Login and return access + refresh JWTs (refresh hash persisted in DB)",
                 "consumes": [
                     "application/json"
                 ],
@@ -1062,7 +1062,7 @@ const docTemplate = `{
     },
     "securityDefinitions": {
         "BearerAuth": {
-            "description": "Paste: Bearer \u003cyour_login_token\u003e (capital B, then a space, then the login JWT)",
+            "description": "Paste: Bearer \u003caccessToken\u003e (capital B, then a space, then the access JWT from login/refresh — not the refresh token)",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"

@@ -349,7 +349,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Allow user login and generate access code
+      description: Login and return access + refresh JWTs (refresh hash persisted
+        in DB)
       parameters:
       - description: Login payload
         in: body
@@ -719,8 +720,8 @@ schemes:
 - http
 securityDefinitions:
   BearerAuth:
-    description: 'Paste: Bearer <your_login_token> (capital B, then a space, then
-      the login JWT)'
+    description: 'Paste: Bearer <accessToken> (capital B, then a space, then the access
+      JWT from login/refresh — not the refresh token)'
     in: header
     name: Authorization
     type: apiKey

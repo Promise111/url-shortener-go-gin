@@ -246,7 +246,7 @@ No Bearer header. Body field is `refresh_token` (snake_case).
 { "refresh_token": "eyJ..." }
 ```
 
-**200** — refresh row revoked (`revoked_at` set).  
+**200** — `{ "status": true, "message": "Refresh token revoked successfully" }` (`revoked_at` set on the row).  
 **400** — bind. **401** — hash not found. **500**.
 
 ### `POST /api/v1/links`
@@ -413,7 +413,7 @@ Comments live on the handler functions. Generated files: `cmd/shortener-api/docs
 
 UI: `http://localhost:8003/swagger/index.html`
 
-Link operations use `@Security BearerAuth`. Scheme is declared in `main.go` (`@securityDefinitions.apikey`, header `Authorization`). Auth is **not** a Parameters field: use **Authorize** (top right). Paste `Bearer <token>` (word `Bearer`, space, JWT). Hard-refresh if the lock does not appear after `swag init`. Confirm the running spec at `/swagger/doc.json` contains `securityDefinitions`.
+Link operations use `@Security BearerAuth`. Scheme is declared in `main.go` (`@securityDefinitions.apikey`, header `Authorization`). Auth is **not** a Parameters field: use **Authorize** (top right). Paste `Bearer <accessToken>` (word `Bearer`, space, **access** JWT from login/refresh — not the refresh token). Hard-refresh if the lock does not appear after `swag init`. Confirm the running spec at `/swagger/doc.json` contains `securityDefinitions`.
 
 After you change `// @Router` / `// @Param` / `// @Security` comments:
 

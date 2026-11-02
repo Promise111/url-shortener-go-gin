@@ -28,7 +28,7 @@ import (
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
-// @description Paste: Bearer <your_login_token> (capital B, then a space, then the login JWT)
+// @description Paste: Bearer <accessToken> (capital B, then a space, then the access JWT from login/refresh — not the refresh token)
 
 // @host		localhost:8003
 // @BasePath	/

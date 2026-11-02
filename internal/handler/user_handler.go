@@ -198,7 +198,7 @@ func RegisterUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 }
 
 // @Summary Login User
-// @Description Allow user login and generate access code
+// @Description Login and return access + refresh JWTs (refresh hash persisted in DB)
 // @Tags auth
 // @Accept json
 // @Produce json
