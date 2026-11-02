@@ -87,6 +87,11 @@ type GenerateAccessResponse struct {
 	Data    GenerateAccessResponseData `json:"data"`
 }
 
+type RevokeAccessResponse struct {
+	Status bool `json:"true" example:"true"`
+	Message string `json:"message" example:"Refresh token revoked successfully"`
+}
+
 type RevokeRefreshRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyNzkxNDg2NzgzLCJpZCI6IjUxMWE3NDNhLWFlNGItNGZhMC1hYjQzLTUxOTM3ZTUxMGM2OSIsInVzZ0.n5vU3bqtslWmIlCxlUNOlpb9V_CxXWHgM53Ha2ZbmNY"`
 }
@@ -296,6 +301,17 @@ func hashRefreshToken(token string) string {
 	return hex.EncodeToString(hash[:])
 }
 
+// @Summary Generate Access and Refresh Tokens
+// @Description Allow user generate access and refresh tokens
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body GenerateAccessRequest true "Generate access payload"
+// @Success 200 {object} GenerateAccessResponse
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/v1/auth/refresh [post]
 func GenerateAccess(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var request GenerateAccessRequest
@@ -379,6 +395,17 @@ func GenerateAccess(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 	}
 }
 
+// @Summary Logout
+// @Description Allow user logout and invalidate refresh token
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body RevokeRefreshRequest true "Logout payload"
+// @Success 200 {object} RevokeAccessResponse
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/v1/auth/logout [post]
 func RevokeRefreshToken(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var request RevokeRefreshRequest
@@ -401,9 +428,9 @@ func RevokeRefreshToken(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{
-			"status":  true,
-			"message": "Refresh token revoked successfully",
+		c.JSON(http.StatusOK, RevokeAccessResponse{
+			Status:  true,
+			Message: "Refresh token revoked successfully",
 		})
 	}
 }
