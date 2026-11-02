@@ -6,4 +6,4 @@ CREATE TABLE IF NOT EXISTS email_verification_tokens(
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-ADD INDEX IF NOT EXISTS idx_email_verification_tokens_user_id ON email_verification_tokens (user_id);
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user_id ON email_verification_tokens (user_id);
