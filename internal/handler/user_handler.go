@@ -13,11 +13,9 @@ import (
 	"github.com/Promise111/url-shortener-go-gin/internal/config"
 	"github.com/Promise111/url-shortener-go-gin/internal/database"
 	"github.com/Promise111/url-shortener-go-gin/internal/model"
-	"github.com/Promise111/url-shortener-go-gin/internal/queue"
 	"github.com/Promise111/url-shortener-go-gin/internal/repository"
 	"github.com/gin-gonic/gin"
 	jwt "github.com/golang-jwt/jwt/v5"
-	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
@@ -72,6 +70,25 @@ type LoginResponseData struct {
 type LoginResponse struct {
 	Status bool              `json:"status" example:"true"`
 	Data   LoginResponseData `json:"data"`
+}
+
+type GenerateAccessRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyNzkxNDg2NzgzLCJpZCI6IjUxMWE3NDNhLWFlNGItNGZhMC1hYjQzLTUxOTM3ZTUxMGM2OSIsInVzZ0.n5vU3bqtslWmIlCxlUNOlpb9V_CxXWHgM53Ha2ZbmNY"`
+}
+
+type GenerateAccessResponseData struct {
+	AccessToken  string `json:"accessToken" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyNzkxNDg2NzgzLCJpZCI6IjUxMWE3NDNhLWFlNGItNGZhMC1hYjQzLTUxOTM3ZTUxMGM2OSIsInVzZ0.n5vU3bqtslWmIlCxlUNOlpb9V_CxXWHgM53Ha2ZbmNY"`
+	RefreshToken string `json:"refreshToken" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFzkxNDg2NzgzLCJpZCI6IjUxMWE3NDNhLWFlNGItNGZhMxMGM2OSIsInVzZXJuYW1lIjoicmFuZG9tZ2VlIn0.n5vU3bqUNOlpb9V_CxXWHgM53Ha2ZbmNY"`
+}
+
+type GenerateAccessResponse struct {
+	Status  bool                       `json:"status" example:"true"`
+	Message string                     `json:"message" example:"Access token generated successfully"`
+	Data    GenerateAccessResponseData `json:"data"`
+}
+
+type RevokeRefreshRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyNzkxNDg2NzgzLCJpZCI6IjUxMWE3NDNhLWFlNGItNGZhMC1hYjQzLTUxOTM3ZTUxMGM2OSIsInVzZ0.n5vU3bqtslWmIlCxlUNOlpb9V_CxXWHgM53Ha2ZbmNY"`
 }
 
 type TokenType string
@@ -186,7 +203,7 @@ func RegisterUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/auth/login [post]
-func LoginHandler(pool *pgxpool.Pool, cfg *config.Config, asynqClient *asynq.Client) gin.HandlerFunc {
+func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var err error
 		var input LoginUserRequest
@@ -248,14 +265,10 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config, asynqClient *asynq.Cli
 
 		userID := user.ID
 
-		// hand of refresh token db persistence to queue so our handler has one less thing to worry about
-		task, taskErr := queue.PersistRefreshTokenTask(refreshHash, expiration, userID)
-		if taskErr != nil {
-			slog.Error("Asynq persist refresh token", "error", taskErr)
-			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
-			return
-		} else if _, taskQueueErr := asynqClient.Enqueue(task); taskQueueErr != nil {
-			slog.Error("Task Queue Error", "error", taskQueueErr)
+		_, persistRefreshTokenError := repository.PersistRefreshToken(c, pool, refreshHash, userID, expiration)
+
+		if persistRefreshTokenError != nil {
+			slog.Error("persist refresh token error", "error", persistRefreshTokenError)
 			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
 			return
 		}
@@ -281,4 +294,116 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config, asynqClient *asynq.Cli
 func hashRefreshToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(hash[:])
+}
+
+func GenerateAccess(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var request GenerateAccessRequest
+		if bindError := c.ShouldBindJSON(&request); bindError != nil {
+			WriteError(c, http.StatusBadRequest, bindError.Error())
+			return
+		}
+
+		refreshHash := hashRefreshToken(request.RefreshToken)
+
+		refreshRecord, refreshRecordError := repository.GetRefreshTokenByHash(c.Request.Context(), pool, refreshHash)
+
+		if refreshRecordError != nil {
+			if errors.Is(refreshRecordError, pgx.ErrNoRows) {
+				WriteError(c, http.StatusUnauthorized, "Invalid or expired token")
+				return
+			}
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		}
+
+		user, getUserErr := repository.GetUserByID(c.Request.Context(), pool, refreshRecord.UserID)
+		if getUserErr != nil {
+			if errors.Is(getUserErr, pgx.ErrNoRows) {
+				WriteError(c, http.StatusUnauthorized, "User not found")
+				return
+			}
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		}
+
+		// delete previous refresh
+		deleteRefreshHashError := repository.DeleteRefreshToken(c.Request.Context(), pool, refreshHash)
+
+		if deleteRefreshHashError != nil {
+			if errors.Is(deleteRefreshHashError, pgx.ErrNoRows) {
+				WriteError(c, http.StatusUnauthorized, "Invalid or expired refresh token")
+				return
+			}
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		}
+
+		accessToken, accessTokenErr := GenerateToken(*user, cfg, TokenTypeAccess)
+		if accessTokenErr != nil {
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		}
+
+		refreshToken, refreshTokenErr := GenerateToken(*user, cfg, TokenTypeRefresh)
+		if refreshTokenErr != nil {
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		}
+
+		var newRefreshHash = hashRefreshToken(refreshToken)
+
+		expirationSeconds := cfg.RefreshExpiration
+
+		intExpiresAt, convErr := strconv.Atoi(expirationSeconds)
+		if convErr != nil {
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		}
+
+		_, persistTokenErr := repository.PersistRefreshToken(c.Request.Context(), pool, newRefreshHash, user.ID, time.Now().Add(time.Second*time.Duration(intExpiresAt)))
+
+		if persistTokenErr != nil {
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		}
+
+		c.JSON(http.StatusOK, GenerateAccessResponse{
+			Status:  true,
+			Message: "Access token generated successfully",
+			Data: GenerateAccessResponseData{
+				AccessToken:  accessToken,
+				RefreshToken: refreshToken,
+			},
+		})
+	}
+}
+
+func RevokeRefreshToken(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var request RevokeRefreshRequest
+
+		err := c.ShouldBindJSON(&request)
+		if err != nil {
+			WriteError(c, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		hashedToken := hashRefreshToken(request.RefreshToken)
+
+		_, refreshHashRecordErr := repository.RevokeRefreshToken(c.Request.Context(), pool, time.Now(), hashedToken)
+		if refreshHashRecordErr != nil {
+			if errors.Is(refreshHashRecordErr, pgx.ErrNoRows) {
+				WriteError(c, http.StatusUnauthorized, refreshHashRecordErr.Error())
+				return
+			}
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Refresh token revoked successfully",
+		})
+	}
 }

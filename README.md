@@ -6,8 +6,8 @@ Stack: **Go**, **Gin**, **PostgreSQL** (`pgx` pool), **Redis** (`go-redis` v9) f
 
 ## What works today
 
-- Register and login under `/api/v1/auth`. Login returns a JWT (5 hour `exp`)
-- Link create, list, get, update, and delete under `/api/v1/links` require `Authorization: Bearer <token>`. Rows are scoped by `user_id` (owner IDOR: other users’ ids/codes are **404**)
+- Register and login under `/api/v1/auth`. Login returns a short-lived **access** JWT and a long-lived **refresh** token; the refresh hash is stored in `refresh_tokens`. `POST /auth/refresh` rotates refresh and returns a new pair; `POST /auth/logout` revokes by hash. Link routes accept **access** only (`tokenType: access`)
+- Link create, list, get, update, and delete under `/api/v1/links` require `Authorization: Bearer <accessToken>`. Rows are scoped by `user_id` (owner IDOR: other users’ ids/codes are **404**)
 - Optional `expires_at` on create and update (RFC3339 only; a set timestamp must be in the future). On **PATCH**, JSON `null` or a blank string clears expiry; omitting the field leaves it as-is
 - Optional `status` (`active` or `disabled`) and `max_clicks` (≥ 5, or omit/`null` for unlimited). Create defaults `status` to `active`. The client cannot set `expired`
 - On **PATCH**, JSON `null` on `max_clicks` clears the cap; omitting the field leaves it as-is
@@ -15,7 +15,7 @@ Stack: **Go**, **Gin**, **PostgreSQL** (`pgx` pool), **Redis** (`go-redis` v9) f
 - Redirect lookup is **cache-aside** in Redis (`link:{shortCode}`, TTL 1 hour). Payload is `long_url`, `expires_at`, `max_clicks`, `status` — not `clicks`. Miss or Redis error falls through to Postgres; a successful miss is written back. Failed `SET` is logged; the 307 still happens. Successful **PATCH** and **DELETE** `DEL` that key (delete uses `RETURNING short_code`)
 - Create generates a 10-character base62 code and retries the insert up to **3** times if Postgres reports a unique `short_code` (`23505`). Optional custom `short_code` on create: alphanumeric, 3–20 chars, stored lowercased; reserved words **422**; already taken **409**
 - Per-IP rate limits on **create** and **public redirect** (Redis fixed window, `INCR` + TTL). Over limit → **429**. Redis errors after startup fail open (request is allowed). An unused in-process token-bucket file remains as a reference and is not wired
-- asynq worker (`cmd/shortener-worker`): `redirect_increment` on each live redirect; `expire_link` every minute (scheduler) sets `status = expired` where `expires_at <= NOW()` and `status` is still `active`. Run the worker beside the API or clicks/`status` lag until it is up
+- asynq worker (`cmd/shortener-worker`): `redirect_increment` on each live redirect; `expire_link` every minute (scheduler) sets `status = expired` where `expires_at <= NOW()` and `status` is still `active`; daily `clear_expired_refresh` deletes expired refresh rows. Run the worker beside the API or clicks/`status` lag until it is up
 - Health check
 - Swagger UI at `/swagger/index.html` with **BearerAuth** on protected link operations
 
@@ -45,17 +45,17 @@ internal/
   database/            # pgx pool; Redis client; unique-violation helper (SQLSTATE 23505)
   handler/             # HTTP adapters
     link_handler.go    # JSON CRUD (owner-scoped); PATCH/DELETE invalidate Redis
-    user_handler.go    # register, login, JWT
+    user_handler.go    # register, login, refresh, logout
     redirect_handler.go  # cache-aside then 410 gates then enqueue increment then 307
     health_handler.go
     response.go
-  middleware/          # JWT auth; Redis fixed-window limiter (live); in-process token bucket (unwired)
-  model/               # Links, Users
-  queue/               # asynq task names + constructors (`redirect_increment`, `expire_link`)
+  middleware/          # JWT auth (access only); Redis fixed-window limiter (live); in-process token bucket (unwired)
+  model/               # Links, Users, RefreshTokens
+  queue/               # asynq task names + constructors (`redirect_increment`, `expire_link`, …)
   repository/          # SQL (takes context.Context; 5s timeout on the request ctx)
   router/              # Gin routes
   shortcode/           # random base62 short-code generator
-migrations/            # Postgres DDL (000001–000006)
+migrations/            # Postgres DDL (000001–000007)
 ```
 
 Request flow: **router → auth middleware (link group) → handler → repository → Postgres**. Create and public redirect run the Redis limiter first (`INCR rl:{prefix}:{ip}`). Public redirect then: **Redis GET `link:` → (miss) Postgres → SET → 410 gates → enqueue `redirect_increment` → 307**. The worker pops that job and runs the increment `UPDATE`. Once a minute the worker scheduler enqueues `expire_link` (sweep). Handlers pass `c.Request.Context()`; the repository wraps SQL with a 5 second timeout.
@@ -72,12 +72,14 @@ Request flow: **router → auth middleware (link group) → handler → reposito
 ## Setup
 
 1. Create a database (name is up to you).
-2. Apply migrations in order (`000001` … `000006`). `000005` adds `NOT NULL user_id` on `links`; empty the table first if you already have rows without an owner.
+2. Apply migrations in order (`000001` … `000007`). `000005` adds `NOT NULL user_id` on `links`; empty the table first if you already have rows without an owner. `000007` creates `refresh_tokens`.
 3. Copy the env vars below into a `.env` at the repo root (that file is gitignored):
 
 ```env
 DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/DBNAME?sslmode=disable
 JWT_SECRET=change-me-to-a-long-random-string
+ACCESS_EXPIRATION=900
+REFRESH_EXPIRATION=604800
 PORT=8003
 REDIS_ADDR=localhost:6379
 ```
@@ -88,6 +90,8 @@ REDIS_ADDR=localhost:6379
 |---|---|
 | `DATABASE_URL` | pgx connection string |
 | `JWT_SECRET` | HMAC-SHA256 key for issuing and verifying JWTs |
+| `ACCESS_EXPIRATION` | Access JWT lifetime in **seconds** (e.g. `900` = 15 minutes) |
+| `REFRESH_EXPIRATION` | Refresh JWT / DB row lifetime in **seconds** (e.g. `604800` = 7 days) |
 | `PORT` | HTTP listen port and Swagger host |
 | `REDIS_ADDR` | Redis `host:port` (`go-redis` `Options.Addr`) |
 
@@ -123,15 +127,24 @@ API base (default port): `http://localhost:8003`
 
 Passwords are stored with **bcrypt** (length **8–72**; 72 is bcrypt’s byte limit). Login looks up by **email or username** (at least one required after trim; values are lowercased to match register). If both are sent, **email wins**. Soft-deleted users (`deleted_at IS NOT NULL`) are treated as unknown (**401**). Wrong user or password → **401** `"Invalid credentials."` Duplicate email/username on register → **409**. Unexpected DB errors on register → **500**.
 
-Successful login (**200**) returns `data.user` (no password hash; model tag `json:"-"`) and `data.token`.
+Successful login (**200**) returns `data.user` (no password hash; model tag `json:"-"`), `data.accessToken`, and `data.refreshToken`. Both are HS256 JWTs with a `tokenType` claim (`access` or `refresh`). Lifetimes come from `ACCESS_EXPIRATION` / `REFRESH_EXPIRATION` (seconds).
 
-Send on every `/api/v1/links` request:
+The **refresh** raw string is hashed with **SHA-256** (hex) and inserted into `refresh_tokens` **synchronously** on login (and again on each successful refresh). Access tokens are not stored in the DB.
+
+Send the **access** token on every `/api/v1/links` request:
 
 ```http
-Authorization: Bearer <token>
+Authorization: Bearer <accessToken>
 ```
 
-The scheme is `Bearer` (capital B) plus a space. Claims: `id`, `email`, `username`, `exp` (Unix seconds, 5 hours). Middleware checks HS256 and `jwt.Parse` validity, then `c.Set("user_id", id)`. Handlers never take `user_id` from JSON.
+The scheme is `Bearer` (capital B) plus a space. Claims: `id`, `email`, `username`, `exp`, `tokenType`. Middleware checks HS256, validity, and `tokenType == access`, then `c.Set("user_id", id)`. A refresh JWT in `Authorization` is rejected. Handlers never take `user_id` from JSON.
+
+| Endpoint | Auth | Body | Result |
+|---|---|---|---|
+| `POST /api/v1/auth/refresh` | No | `{ "refresh_token": "…" }` | Validates hash (not revoked, not expired), loads user, **deletes** old refresh row, issues new access + refresh, persists new hash (**rotation**). Returns both tokens |
+| `POST /api/v1/auth/logout` | No | `{ "refresh_token": "…" }` | Hashes body → sets `revoked_at`. Access may already be expired; do not require Bearer |
+
+Unknown / expired / revoked refresh → **401**. Do not put refresh tokens on link routes.
 
 ## HTTP API
 
@@ -168,7 +181,9 @@ Error:
 |---|---|---|---|
 | GET | `/api/v1/health` | No | Health |
 | POST | `/api/v1/auth/register` | No | Register |
-| POST | `/api/v1/auth/login` | No | Login (JWT) |
+| POST | `/api/v1/auth/login` | No | Login (access + refresh) |
+| POST | `/api/v1/auth/refresh` | No | Rotate refresh; new access + refresh |
+| POST | `/api/v1/auth/logout` | No | Revoke refresh |
 | POST | `/api/v1/links` | Bearer | Create |
 | GET | `/api/v1/links` | Bearer | List **your** links (paginated) |
 | GET | `/api/v1/links/{id}` | Bearer | Get by id (your row) |
@@ -211,8 +226,28 @@ Email, password (8–72), username (3–30) required. Email and username are sto
 
 Or `username` instead of `email`. If both are present, email is used. Password is required (8–72).
 
-**200** — `{ "status": true, "data": { "user": { ... }, "token": "eyJ..." } }`.  
+**200** — `{ "status": true, "data": { "user": { ... }, "accessToken": "eyJ...", "refreshToken": "eyJ..." } }`.  
 **400** — neither email nor username, or bind/validation. **401** — unknown, soft-deleted, or bad password. **500**.
+
+### `POST /api/v1/auth/refresh`
+
+```json
+{ "refresh_token": "eyJ..." }
+```
+
+No Bearer header. Body field is `refresh_token` (snake_case).
+
+**200** — `{ "status": true, "message": "...", "data": { "accessToken": "...", "refreshToken": "..." } }`. Client must replace the stored refresh; the previous one is deleted.  
+**400** — missing/invalid body. **401** — unknown, revoked, expired, or user gone. **500**.
+
+### `POST /api/v1/auth/logout`
+
+```json
+{ "refresh_token": "eyJ..." }
+```
+
+**200** — refresh row revoked (`revoked_at` set).  
+**400** — bind. **401** — hash not found. **500**.
 
 ### `POST /api/v1/links`
 
@@ -366,8 +401,9 @@ Same `REDIS_ADDR` as cache/rate limit. The API holds an `asynq.Client` (`queue.N
 |---|---|---|---|
 | `redirect_increment` | live public redirect, after 410 gates | JSON `{ "short_code": "…" }` | `IncrementClickCount`; `ErrNoRows` → ack (`nil`), other errors retry |
 | `expire_link` | scheduler cron `*/1 * * * *` (every minute, UTC) | none | `ExpireLink` sweep: `status = expired` where `active` and `expires_at <= NOW()`; `Exec` errors retry; 0 rows is success |
+| `clear_expired_refresh` | scheduler cron `0 0 * * *` (daily midnight UTC) | none | `DeleteExpiredRefreshTokens` |
 
-`ExpireLinkTask` sets `MaxRetry(5)` and `Timeout(20s)`. Increment uses asynq defaults if you set nothing on `NewTask`.
+`ExpireLinkTask` sets `MaxRetry(5)` and `Timeout(20s)`. Increment uses asynq defaults if you set nothing on `NewTask`. Refresh hashes are persisted **in the login/refresh handlers**, not via asynq.
 
 Inspect (CLI, same Redis): `asynq ls default`, `asynq stats`, `asynq cron ls` (worker must be up for cron). Pending notes are a Redis **list**: `LRANGE asynq:{default}:pending 0 -1`, not `GET`.
 
@@ -400,6 +436,7 @@ Documented URL = BasePath + `@Router`. With BasePath `/`, `@Router` must be the 
 |---|---|
 | Health | `/api/v1/health [get]` |
 | Register / login | `/api/v1/auth/register [post]` / `/api/v1/auth/login [post]` |
+| Refresh / logout | `/api/v1/auth/refresh [post]` / `/api/v1/auth/logout [post]` |
 | Create / list | `/api/v1/links [post]` / `[get]` |
 | Get / patch / delete | `/api/v1/links/{id} [...]` |
 | Get by code | `/api/v1/links/code/{shortCode} [get]` |
@@ -441,6 +478,19 @@ Table `links`:
 Indexes (migration `000002`): `expires_at` (partial, non-null), `clicks`, `created_at DESC`.  
 Index (migration `000003`): `status`. Enum type `link_status` is created in `000003`.  
 Index (migration `000005`): `user_id` (FK, not unique — many links per user).
+
+Table `refresh_tokens` (migration `000007`):
+
+| Column | Notes |
+|---|---|
+| `id` | `SERIAL` PK |
+| `user_id` | UUID `NOT NULL REFERENCES users(id) ON DELETE CASCADE` |
+| `token_hash` | SHA-256 hex of the raw refresh JWT; `UNIQUE NOT NULL` |
+| `expires_at` | `NOT NULL` (aligned with refresh JWT lifetime) |
+| `revoked_at` | nullable; set on logout |
+| `created_at` | default `NOW()` |
+
+Indexes: `user_id`; `UNIQUE` on `token_hash` (lookup on refresh/logout). Optional index on `expires_at` for the daily sweeper.
 
 ## License
 

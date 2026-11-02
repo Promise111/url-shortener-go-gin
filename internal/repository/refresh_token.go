@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Promise111/url-shortener-go-gin/internal/model"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -109,6 +110,29 @@ func DeleteExpiredRefreshTokens(c context.Context, pool *pgxpool.Pool) error {
 
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func DeleteRefreshToken(c context.Context, pool *pgxpool.Pool, refreshHash string) error {
+	ctx, cancelFunc := CtxTimeout(c)
+	defer cancelFunc()
+
+	var err error
+	var query = `
+	DELETE FROM refresh_tokens 
+	WHERE token_hash = $1;
+	`
+
+	cmdTag, err := pool.Exec(ctx, query, refreshHash)
+
+	if err != nil {
+		return err
+	}
+
+	if cmdTag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
 	}
 
 	return nil
