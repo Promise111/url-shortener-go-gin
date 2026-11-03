@@ -13,10 +13,12 @@ import (
 	"github.com/Promise111/url-shortener-go-gin/internal/config"
 	"github.com/Promise111/url-shortener-go-gin/internal/database"
 	"github.com/Promise111/url-shortener-go-gin/internal/model"
+	"github.com/Promise111/url-shortener-go-gin/internal/queue"
 	"github.com/Promise111/url-shortener-go-gin/internal/repository"
 	"github.com/Promise111/url-shortener-go-gin/internal/verificationToken"
 	"github.com/gin-gonic/gin"
 	jwt "github.com/golang-jwt/jwt/v5"
+	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
@@ -100,6 +102,15 @@ type VerifyEmailResponse struct {
 
 type RevokeRefreshRequest struct {
 	RefreshToken string `json:"refresh_token" binding:"required" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyNzkxNDg2NzgzLCJpZCI6IjUxMWE3NDNhLWFlNGItNGZhMC1hYjQzLTUxOTM3ZTUxMGM2OSIsInVzZ0.n5vU3bqtslWmIlCxlUNOlpb9V_CxXWHgM53Ha2ZbmNY"`
+}
+
+type ResendEmailVerificationTokenRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+type ResendEmailVerificationTokenResponse struct {
+	Status  bool   `json:"status" example:"true"`
+	Message string `json:"message" example:"Verification code resent successfully"`
 }
 
 type TokenType string
@@ -476,7 +487,7 @@ func RevokeRefreshToken(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/auth/verify-email [post]
-func VerifyEmail(pool *pgxpool.Pool) gin.HandlerFunc {
+func VerifyEmail(pool *pgxpool.Pool, asynqClient *asynq.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var token = c.Query("token")
 		if strings.TrimSpace(token) == "" {
@@ -505,6 +516,12 @@ func VerifyEmail(pool *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		if user.EmailVerifiedAt != nil {
+			deleteEmailTokenByUserIDError := repository.DeleteEmailVerificationTokenByUserID(c.Request.Context(), pool, user.ID)
+			if deleteEmailTokenByUserIDError != nil {
+				slog.Error("Delete email tokens by userID", "error", deleteEmailTokenByUserIDError)
+				WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+				return
+			}
 			c.JSON(http.StatusOK, VerifyEmailResponse{
 				Status:  true,
 				Message: "Email already verified",
@@ -523,9 +540,86 @@ func VerifyEmail(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
+		if task, deleteTaskErr := queue.DeleteEmailVerificationTokenByUserID(user.ID); deleteTaskErr != nil {
+			slog.Error("Delete email verification token by userID", "error", deleteTaskErr)
+		} else if _, enqueueTaskErr := asynqClient.Enqueue(task); enqueueTaskErr != nil {
+			slog.Error("Delete email task enqueue error", "error", enqueueTaskErr)
+		}
+
 		c.JSON(http.StatusOK, VerifyEmailResponse{
 			Status:  true,
 			Message: "Email verified successfully",
+		})
+	}
+}
+
+// @Summary Resend verification token
+// @Decription Allow users resend email verification token
+// @Tags auth
+// @Produce json
+// @Param email body ResendEmailVerificationTokenRequest true "User's email"
+// @Success 200 {object} ResendEmailVerificationTokenResponse
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/v1/auth/resend-verification [post]
+func ResendEmailVerificationToken(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var request ResendEmailVerificationTokenRequest
+		if bindError := c.ShouldBindJSON(&request); bindError != nil {
+			WriteError(c, http.StatusBadRequest, "Please enter valid email")
+			return
+		}
+		lowerTrimEmail := LowerTrim(request.Email)
+
+		user, getUserError := repository.GetUserByEmail(c.Request.Context(), pool, lowerTrimEmail)
+		if getUserError != nil {
+			if errors.Is(getUserError, pgx.ErrNoRows) {
+				c.JSON(http.StatusOK, ResendEmailVerificationTokenResponse{
+					Status:  true,
+					Message: "If that email exists, a link was sent",
+				})
+				return
+			}
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		}
+
+		if user.EmailVerifiedAt != nil {
+			c.JSON(http.StatusOK, ResendEmailVerificationTokenResponse{
+				Status:  true,
+				Message: "If that email exists, a link was sent",
+			})
+			return
+		}
+
+		verificationToken, genVerificationTokenErr := verificationToken.GenerateVerificationToken()
+		if genVerificationTokenErr != nil {
+			slog.Error("Error generating verification token", "error", genVerificationTokenErr)
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		}
+
+		tokenHash := hashToken(verificationToken)
+
+		deleteEmailTokenByUserIDError := repository.DeleteEmailVerificationTokenByUserID(c.Request.Context(), pool, user.ID)
+		if deleteEmailTokenByUserIDError != nil {
+			slog.Error("Delete email tokens by userID", "error", deleteEmailTokenByUserIDError)
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		}
+
+		createEmailTokenHashError := repository.CreateEmailVerificationToken(c.Request.Context(), pool, tokenHash, user.ID)
+		if createEmailTokenHashError != nil {
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		}
+
+		slog.Info("Email verification token", "info", "http://localhost:8003/api/v1/auth/verify-email?token="+verificationToken)
+
+		c.JSON(http.StatusOK, ResendEmailVerificationTokenResponse{
+			Status:  true,
+			Message: "If that email exists, a link was sent",
 		})
 	}
 }

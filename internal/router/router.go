@@ -47,7 +47,8 @@ func Router(pool *pgxpool.Pool, cfg *config.Config, rds *redis.Client, asynqClie
 		auth.POST("/login", handler.LoginHandler(pool, cfg))
 		auth.POST("/refresh", handler.GenerateAccess(pool, cfg))
 		auth.POST("/logout", handler.RevokeRefreshToken(pool))
-		auth.POST("/verify-email", handler.VerifyEmail(pool))
+		auth.POST("/verify-email", handler.VerifyEmail(pool, asynqClient))
+		auth.POST("/resend-verification", handler.ResendEmailVerificationToken(pool))
 	}
 
 	// public
