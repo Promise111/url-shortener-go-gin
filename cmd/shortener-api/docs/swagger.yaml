@@ -395,8 +395,8 @@ paths:
           schema:
             additionalProperties: true
             type: object
-        "401":
-          description: Unauthorized
+        "403":
+          description: Forbidden
           schema:
             additionalProperties: true
             type: object
@@ -521,6 +521,7 @@ paths:
       - auth
   /api/v1/auth/resend-verification:
     post:
+      description: Allow users resend email verification token
       parameters:
       - description: User's email
         in: body

@@ -60,8 +60,8 @@ const docTemplate = `{
                             "additionalProperties": true
                         }
                     },
-                    "401": {
-                        "description": "Unauthorized",
+                    "403": {
+                        "description": "Forbidden",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -244,6 +244,7 @@ const docTemplate = `{
         },
         "/api/v1/auth/resend-verification": {
             "post": {
+                "description": "Allow users resend email verification token",
                 "produces": [
                     "application/json"
                 ],

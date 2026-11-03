@@ -553,7 +553,7 @@ func VerifyEmail(pool *pgxpool.Pool) gin.HandlerFunc {
 }
 
 // @Summary Resend verification token
-// @Decription Allow users resend email verification token
+// @Description Allow users resend email verification token
 // @Tags auth
 // @Produce json
 // @Param email body ResendEmailVerificationTokenRequest true "User's email"
