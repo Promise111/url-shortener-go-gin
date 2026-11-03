@@ -215,6 +215,22 @@ definitions:
     - password
     - username
     type: object
+  handler.ResendEmailVerificationTokenRequest:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  handler.ResendEmailVerificationTokenResponse:
+    properties:
+      message:
+        example: Verification code resent successfully
+        type: string
+      status:
+        example: true
+        type: boolean
+    type: object
   handler.RevokeAccessResponse:
     properties:
       message:
@@ -503,10 +519,42 @@ paths:
       summary: Register User
       tags:
       - auth
+  /api/v1/auth/resend-verification:
+    post:
+      parameters:
+      - description: User's email
+        in: body
+        name: email
+        required: true
+        schema:
+          $ref: '#/definitions/handler.ResendEmailVerificationTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.ResendEmailVerificationTokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Resend verification token
+      tags:
+      - auth
   /api/v1/auth/verify-email:
     post:
-      consumes:
-      - application/json
       description: Allow user verify email
       parameters:
       - description: Email verification token

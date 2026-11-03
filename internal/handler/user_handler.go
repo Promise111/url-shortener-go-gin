@@ -13,12 +13,10 @@ import (
 	"github.com/Promise111/url-shortener-go-gin/internal/config"
 	"github.com/Promise111/url-shortener-go-gin/internal/database"
 	"github.com/Promise111/url-shortener-go-gin/internal/model"
-	"github.com/Promise111/url-shortener-go-gin/internal/queue"
 	"github.com/Promise111/url-shortener-go-gin/internal/repository"
 	"github.com/Promise111/url-shortener-go-gin/internal/verificationToken"
 	"github.com/gin-gonic/gin"
 	jwt "github.com/golang-jwt/jwt/v5"
-	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
@@ -242,7 +240,7 @@ func RegisterUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Param request body LoginUserRequest true "Login payload"
 // @Success 200 {object} LoginResponse
 // @Failure 400 {object} map[string]any
-// @Failure 401 {object} map[string]any
+// @Failure 403 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/auth/login [post]
 func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
@@ -487,7 +485,7 @@ func RevokeRefreshToken(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/auth/verify-email [post]
-func VerifyEmail(pool *pgxpool.Pool, asynqClient *asynq.Client) gin.HandlerFunc {
+func VerifyEmail(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var token = c.Query("token")
 		if strings.TrimSpace(token) == "" {
@@ -540,10 +538,11 @@ func VerifyEmail(pool *pgxpool.Pool, asynqClient *asynq.Client) gin.HandlerFunc 
 			return
 		}
 
-		if task, deleteTaskErr := queue.DeleteEmailVerificationTokenByUserID(user.ID); deleteTaskErr != nil {
-			slog.Error("Delete email verification token by userID", "error", deleteTaskErr)
-		} else if _, enqueueTaskErr := asynqClient.Enqueue(task); enqueueTaskErr != nil {
-			slog.Error("Delete email task enqueue error", "error", enqueueTaskErr)
+		deleteEmailTokenByUserIDError := repository.DeleteEmailVerificationTokenByUserID(c.Request.Context(), pool, user.ID)
+		if deleteEmailTokenByUserIDError != nil {
+			slog.Error("Delete email tokens by userID", "error", deleteEmailTokenByUserIDError)
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
 		}
 
 		c.JSON(http.StatusOK, VerifyEmailResponse{

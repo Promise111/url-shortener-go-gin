@@ -242,12 +242,60 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/auth/resend-verification": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Resend verification token",
+                "parameters": [
+                    {
+                        "description": "User's email",
+                        "name": "email",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.ResendEmailVerificationTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ResendEmailVerificationTokenResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/auth/verify-email": {
             "post": {
                 "description": "Allow user verify email",
-                "consumes": [
-                    "application/json"
-                ],
                 "produces": [
                     "application/json"
                 ],
@@ -995,6 +1043,30 @@ const docTemplate = `{
                     "maxLength": 30,
                     "minLength": 3,
                     "example": "randomgee"
+                }
+            }
+        },
+        "handler.ResendEmailVerificationTokenRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.ResendEmailVerificationTokenResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "Verification code resent successfully"
+                },
+                "status": {
+                    "type": "boolean",
+                    "example": true
                 }
             }
         },
