@@ -6,7 +6,7 @@ Stack: **Go**, **Gin**, **PostgreSQL** (`pgx` pool), **Redis** (`go-redis` v9) f
 
 ## What works today
 
-- Register and login under `/api/v1/auth`. Login returns a short-lived **access** JWT and a long-lived **refresh** token; the refresh hash is stored in `refresh_tokens`. `POST /auth/refresh` rotates refresh and returns a new pair; `POST /auth/logout` revokes by hash. Link routes accept **access** only (`tokenType: access`)
+- Register, email verify, and login under `/api/v1/auth`. Register creates an opaque verification token (SHA-256 hash in `email_verification_tokens`; raw token logged for local use — no SMTP yet). `POST /auth/verify-email?token=…` sets `email_verified_at`; `POST /auth/resend-verification` replaces tokens for that user. Login requires a verified email (**403** if not), then returns a short-lived **access** JWT and a long-lived **refresh** token; the refresh hash is stored in `refresh_tokens`. `POST /auth/refresh` rotates refresh and returns a new pair; `POST /auth/logout` revokes by hash. Link routes accept **access** only (`tokenType: access`)
 - Link create, list, get, update, and delete under `/api/v1/links` require `Authorization: Bearer <accessToken>`. Rows are scoped by `user_id` (owner IDOR: other users’ ids/codes are **404**)
 - Optional `expires_at` on create and update (RFC3339 only; a set timestamp must be in the future). On **PATCH**, JSON `null` or a blank string clears expiry; omitting the field leaves it as-is
 - Optional `status` (`active` or `disabled`) and `max_clicks` (≥ 5, or omit/`null` for unlimited). Create defaults `status` to `active`. The client cannot set `expired`
@@ -45,17 +45,18 @@ internal/
   database/            # pgx pool; Redis client; unique-violation helper (SQLSTATE 23505)
   handler/             # HTTP adapters
     link_handler.go    # JSON CRUD (owner-scoped); PATCH/DELETE invalidate Redis
-    user_handler.go    # register, login, refresh, logout
+    user_handler.go    # register, login, refresh, logout, verify-email, resend-verification
     redirect_handler.go  # cache-aside then 410 gates then enqueue increment then 307
     health_handler.go
     response.go
   middleware/          # JWT auth (access only); Redis fixed-window limiter (live); in-process token bucket (unwired)
-  model/               # Links, Users, RefreshTokens
+  model/               # Links, Users, RefreshTokens, EmailVerificationTokens
   queue/               # asynq task names + constructors (`redirect_increment`, `expire_link`, …)
   repository/          # SQL (takes context.Context; 5s timeout on the request ctx)
   router/              # Gin routes
   shortcode/           # random base62 short-code generator
-migrations/            # Postgres DDL (000001–000007)
+  verificationToken/   # crypto/rand + hex opaque email-verify secret
+migrations/            # Postgres DDL (000001–000009)
 ```
 
 Request flow: **router → auth middleware (link group) → handler → repository → Postgres**. Create and public redirect run the Redis limiter first (`INCR rl:{prefix}:{ip}`). Public redirect then: **Redis GET `link:` → (miss) Postgres → SET → 410 gates → enqueue `redirect_increment` → 307**. The worker pops that job and runs the increment `UPDATE`. Once a minute the worker scheduler enqueues `expire_link` (sweep). Handlers pass `c.Request.Context()`; the repository wraps SQL with a 5 second timeout.
@@ -72,7 +73,7 @@ Request flow: **router → auth middleware (link group) → handler → reposito
 ## Setup
 
 1. Create a database (name is up to you).
-2. Apply migrations in order (`000001` … `000007`). `000005` adds `NOT NULL user_id` on `links`; empty the table first if you already have rows without an owner. `000007` creates `refresh_tokens`.
+2. Apply migrations in order (`000001` … `000009`). `000005` adds `NOT NULL user_id` on `links`; empty the table first if you already have rows without an owner. `000007` creates `refresh_tokens`. `000008` adds `users.email_verified_at`. `000009` creates `email_verification_tokens`.
 3. Copy the env vars below into a `.env` at the repo root (that file is gitignored):
 
 ```env
@@ -125,11 +126,13 @@ API base (default port): `http://localhost:8003`
 
 ## Auth
 
-Passwords are stored with **bcrypt** (length **8–72**; 72 is bcrypt’s byte limit). Login looks up by **email or username** (at least one required after trim; values are lowercased to match register). If both are sent, **email wins**. Soft-deleted users (`deleted_at IS NOT NULL`) are treated as unknown (**401**). Wrong user or password → **401** `"Invalid credentials."` Duplicate email/username on register → **409**. Unexpected DB errors on register → **500**.
+Passwords are stored with **bcrypt** (length **8–72**; 72 is bcrypt’s byte limit). Login looks up by **email or username** (at least one required after trim; values are lowercased to match register). If both are sent, **email wins**. Soft-deleted users (`deleted_at IS NOT NULL`) are treated as unknown (**401**). Wrong user or password → **401** `"Invalid credentials."` Correct password but `email_verified_at IS NULL` → **403** `"Please verify your email"` (no JWTs). Duplicate email/username on register → **409**. Unexpected DB errors on register → **500**.
+
+**Email verification:** on register the API generates 32 random bytes (`crypto/rand`), hex-encodes them (64 chars), stores **SHA-256 hex** in `email_verification_tokens` (`expires_at` = now + 24h), and logs a link like `http://localhost:8003/api/v1/auth/verify-email?token=<raw>` (stand-in for email). `POST /auth/verify-email?token=…` looks up by hash (`expires_at > NOW()`), sets `users.email_verified_at`, and deletes that user’s verification rows. Already verified → **200** and cleanup. `POST /auth/resend-verification` takes `{ "email" }`; unknown or already-verified emails still get a generic **200** (`If that email exists, a link was sent`); unverified users get old tokens deleted, a new hash inserted, and a new link logged.
 
 Successful login (**200**) returns `data.user` (no password hash; model tag `json:"-"`), `data.accessToken`, and `data.refreshToken`. Both are HS256 JWTs with a `tokenType` claim (`access` or `refresh`). Lifetimes come from `ACCESS_EXPIRATION` / `REFRESH_EXPIRATION` (seconds).
 
-The **refresh** raw string is hashed with **SHA-256** (hex) and inserted into `refresh_tokens` **synchronously** on login (and again on each successful refresh). Access tokens are not stored in the DB.
+The **refresh** raw string is hashed with **SHA-256** (hex) and inserted into `refresh_tokens` **synchronously** on login (and again on each successful refresh). Access tokens are not stored in the DB. Verification tokens use the same hash style but are **not** JWTs.
 
 Send the **access** token on every `/api/v1/links` request:
 
@@ -139,12 +142,14 @@ Authorization: Bearer <accessToken>
 
 The scheme is `Bearer` (capital B) plus a space. Claims: `id`, `email`, `username`, `exp`, `tokenType`. Middleware checks HS256, validity, and `tokenType == access`, then `c.Set("user_id", id)`. A refresh JWT in `Authorization` is rejected. Handlers never take `user_id` from JSON.
 
-| Endpoint | Auth | Body | Result |
+| Endpoint | Auth | Body / query | Result |
 |---|---|---|---|
+| `POST /api/v1/auth/verify-email` | No | query `token` | Hash → lookup → set `email_verified_at` → delete tokens. Idempotent if already verified |
+| `POST /api/v1/auth/resend-verification` | No | `{ "email": "…" }` | Replace tokens + log new link, or generic 200 (no account leak) |
 | `POST /api/v1/auth/refresh` | No | `{ "refresh_token": "…" }` | Validates hash (not revoked, not expired), loads user, **deletes** old refresh row, issues new access + refresh, persists new hash (**rotation**). Returns both tokens |
 | `POST /api/v1/auth/logout` | No | `{ "refresh_token": "…" }` | Hashes body → sets `revoked_at`. Access may already be expired; do not require Bearer |
 
-Unknown / expired / revoked refresh → **401**. Do not put refresh tokens on link routes.
+Unknown / expired verification or refresh → **401**. Do not put refresh tokens on link routes. Verify is **POST** with a query param (opening the logged URL in a browser is GET → **404**).
 
 ## HTTP API
 
@@ -180,8 +185,10 @@ Error:
 | Method | Path | Auth | Action |
 |---|---|---|---|
 | GET | `/api/v1/health` | No | Health |
-| POST | `/api/v1/auth/register` | No | Register |
-| POST | `/api/v1/auth/login` | No | Login (access + refresh) |
+| POST | `/api/v1/auth/register` | No | Register (+ verification token) |
+| POST | `/api/v1/auth/login` | No | Login (access + refresh; requires verified email) |
+| POST | `/api/v1/auth/verify-email` | No | Verify email (`?token=`) |
+| POST | `/api/v1/auth/resend-verification` | No | Resend verification link |
 | POST | `/api/v1/auth/refresh` | No | Rotate refresh; new access + refresh |
 | POST | `/api/v1/auth/logout` | No | Revoke refresh |
 | POST | `/api/v1/links` | Bearer | Create |
@@ -210,7 +217,7 @@ Error:
 }
 ```
 
-Email, password (8–72), username (3–30) required. Email and username are stored trimmed and lowercased.
+Email, password (8–72), username (3–30) required. Email and username are stored trimmed and lowercased. `email_verified_at` stays `NULL`. A verification token hash is inserted and the raw link is **logged** (check API stdout / Air).
 
 **201** — `data` is the user (`id`, `email`, `username`, timestamps; no password hash).  
 **400** — validation. **409** — email or username taken. **500**.
@@ -227,7 +234,31 @@ Email, password (8–72), username (3–30) required. Email and username are sto
 Or `username` instead of `email`. If both are present, email is used. Password is required (8–72).
 
 **200** — `{ "status": true, "data": { "user": { ... }, "accessToken": "eyJ...", "refreshToken": "eyJ..." } }`.  
-**400** — neither email nor username, or bind/validation. **401** — unknown, soft-deleted, or bad password. **500**.
+**400** — neither email nor username, or bind/validation. **401** — unknown, soft-deleted, or bad password. **403** — password OK but email not verified. **500**.
+
+### `POST /api/v1/auth/verify-email`
+
+Query param (required): `token` — the raw opaque string from the logged link (not a JWT).
+
+```text
+POST /api/v1/auth/verify-email?token=<64-char-hex>
+```
+
+No JSON body. Use Swagger Try it out, curl, or Postman — not a browser address bar (that is GET).
+
+**200** — `{ "status": true, "message": "Email verified successfully" }` or `"Email already verified"`. Tokens for that user are deleted.  
+**400** — missing/blank token. **401** — invalid or expired hash / user gone. **500**.
+
+### `POST /api/v1/auth/resend-verification`
+
+```json
+{ "email": "hello@hi.com" }
+```
+
+Email is trimmed and lowercased. Always returns the same success message when the email is unknown or already verified (no account enumeration).
+
+**200** — `{ "status": true, "message": "If that email exists, a link was sent" }` (new link logged when a resend actually ran).  
+**400** — bind/validation. **500**.
 
 ### `POST /api/v1/auth/refresh`
 
@@ -436,6 +467,7 @@ Documented URL = BasePath + `@Router`. With BasePath `/`, `@Router` must be the 
 |---|---|
 | Health | `/api/v1/health [get]` |
 | Register / login | `/api/v1/auth/register [post]` / `/api/v1/auth/login [post]` |
+| Verify email / resend | `/api/v1/auth/verify-email [post]` / `/api/v1/auth/resend-verification [post]` |
 | Refresh / logout | `/api/v1/auth/refresh [post]` / `/api/v1/auth/logout [post]` |
 | Create / list | `/api/v1/links [post]` / `[get]` |
 | Get / patch / delete | `/api/v1/links/{id} [...]` |
@@ -457,6 +489,7 @@ Table `users` (migration `000004`):
 | `password_hash` | bcrypt, never returned on register/login JSON |
 | `username` | unique, non-empty |
 | `deleted_at` | nullable soft delete; login/get-by-email/username/id require `deleted_at IS NULL` |
+| `email_verified_at` | nullable timestamptz (`000008`); `NULL` = unverified; login requires non-null |
 | `created_at` / `updated_at` | defaults |
 
 `UNIQUE` on email and username already creates indexes. Extra duplicate indexes were dropped in `000006`.
@@ -491,6 +524,18 @@ Table `refresh_tokens` (migration `000007`):
 | `created_at` | default `NOW()` |
 
 Indexes: `user_id`; `UNIQUE` on `token_hash` (lookup on refresh/logout). Optional index on `expires_at` for the daily sweeper.
+
+Table `email_verification_tokens` (migration `000009`):
+
+| Column | Notes |
+|---|---|
+| `id` | UUID PK, `gen_random_uuid()` |
+| `token_hash` | SHA-256 hex of the raw opaque token; `UNIQUE NOT NULL` (never return raw/hash in JSON) |
+| `user_id` | UUID `NOT NULL REFERENCES users(id) ON DELETE CASCADE` |
+| `expires_at` | `NOT NULL`; app sets now + 24h on insert (table default also 24h) |
+| `created_at` | default `NOW()` |
+
+Index: `user_id` (delete-all-for-user on verify/resend). Lookup filters `token_hash` + `expires_at > NOW()`.
 
 ## License
 
