@@ -60,6 +60,13 @@ const docTemplate = `{
                             "additionalProperties": true
                         }
                     },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
@@ -255,7 +262,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "description": "User's email",
-                        "name": "email",
+                        "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
@@ -272,13 +279,6 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -1063,7 +1063,7 @@ const docTemplate = `{
             "properties": {
                 "message": {
                     "type": "string",
-                    "example": "Verification code resent successfully"
+                    "example": "Verification token resent successfully"
                 },
                 "status": {
                     "type": "boolean",

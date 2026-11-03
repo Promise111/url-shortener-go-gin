@@ -108,7 +108,7 @@ type ResendEmailVerificationTokenRequest struct {
 
 type ResendEmailVerificationTokenResponse struct {
 	Status  bool   `json:"status" example:"true"`
-	Message string `json:"message" example:"Verification code resent successfully"`
+	Message string `json:"message" example:"Verification token resent successfully"`
 }
 
 type TokenType string
@@ -239,6 +239,7 @@ func RegisterUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Produce json
 // @Param request body LoginUserRequest true "Login payload"
 // @Success 200 {object} LoginResponse
+// @Failure 401 {object} map[string]any
 // @Failure 400 {object} map[string]any
 // @Failure 403 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
@@ -556,10 +557,9 @@ func VerifyEmail(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Description Allow users resend email verification token
 // @Tags auth
 // @Produce json
-// @Param email body ResendEmailVerificationTokenRequest true "User's email"
+// @Param request body ResendEmailVerificationTokenRequest true "User's email"
 // @Success 200 {object} ResendEmailVerificationTokenResponse
 // @Failure 400 {object} map[string]any
-// @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/auth/resend-verification [post]
 func ResendEmailVerificationToken(pool *pgxpool.Pool) gin.HandlerFunc {
