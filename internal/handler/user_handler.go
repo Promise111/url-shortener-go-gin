@@ -469,7 +469,6 @@ func RevokeRefreshToken(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Summary Verify Email
 // @Description Allow user verify email
 // @Tags auth
-// @Accept json
 // @Produce json
 // @Param token query string true "Email verification token"
 // @Success 200 {object} VerifyEmailResponse
