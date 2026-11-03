@@ -71,3 +71,22 @@ func DeleteExpiredEmailVerificationToken(c context.Context, pool *pgxpool.Pool) 
 
 	return nil
 }
+
+func DeleteEmailVerificationTokenByUserID(c context.Context, pool *pgxpool.Pool, userID string) error {
+	ctx, cancelFunc := CtxTimeout(c)
+	defer cancelFunc()
+
+	var err error
+	var query = `
+	DELETE FROM email_verification_tokens 
+	WHERE user_id = $1;
+	`
+
+	_, err = pool.Exec(ctx, query, userID)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
