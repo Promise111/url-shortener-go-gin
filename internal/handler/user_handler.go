@@ -480,6 +480,10 @@ func RevokeRefreshToken(pool *pgxpool.Pool) gin.HandlerFunc {
 func VerifyEmail(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var token = c.Query("token")
+		if strings.TrimSpace(token) == "" {
+			WriteError(c, http.StatusBadRequest, "Please enter a valid token query")
+			return
+		}
 		tokenHash := hashToken(token)
 		tokenHashRecord, tokenHashRecordError := repository.GetEmailVerificationToken(c.Request.Context(), pool, tokenHash)
 		if tokenHashRecordError != nil {
