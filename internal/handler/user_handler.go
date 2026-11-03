@@ -14,6 +14,7 @@ import (
 	"github.com/Promise111/url-shortener-go-gin/internal/database"
 	"github.com/Promise111/url-shortener-go-gin/internal/model"
 	"github.com/Promise111/url-shortener-go-gin/internal/repository"
+	"github.com/Promise111/url-shortener-go-gin/internal/verificationToken"
 	"github.com/gin-gonic/gin"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
@@ -88,8 +89,13 @@ type GenerateAccessResponse struct {
 }
 
 type RevokeAccessResponse struct {
-	Status bool `json:"true" example:"true"`
+	Status  bool   `json:"status" example:"true"`
 	Message string `json:"message" example:"Refresh token revoked successfully"`
+}
+
+type VerifyEmailResponse struct {
+	Status  bool   `json:"status" example:"true"`
+	Message string `json:"message" example:"Email verified successfully"`
 }
 
 type RevokeRefreshRequest struct {
@@ -182,6 +188,26 @@ func RegisterUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
+		// generate email verification token
+		verificationToken, generateVerificationTokenError := verificationToken.GenerateVerificationToken()
+
+		if generateVerificationTokenError != nil {
+			slog.Error("Generate verification error", "error", generateVerificationTokenError)
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		}
+
+		slog.Info("Email verification token", "token", "http://localhost:8003/api/v1/auth/verify-email?token="+verificationToken)
+
+		verificationTokenHash := hashToken(verificationToken)
+
+		createEmailVerificationTokenError := repository.CreateEmailVerificationToken(c.Request.Context(), pool, verificationTokenHash, user.ID)
+		if createEmailVerificationTokenError != nil {
+			slog.Error("Create email verification token error", "error", createEmailVerificationTokenError)
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		}
+
 		c.JSON(http.StatusCreated, CreateUserResponse{
 			Status:  true,
 			Message: "User registered successfully",
@@ -244,6 +270,11 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
+		if user.EmailVerifiedAt == nil {
+			WriteError(c, http.StatusForbidden, "Please verify your email")
+			return
+		}
+
 		var accessToken string
 		var refreshToken string
 
@@ -259,7 +290,7 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		var refreshHash = hashRefreshToken(refreshToken)
+		var refreshHash = hashToken(refreshToken)
 		refreshExpSeconds, refreshExpErr := strconv.Atoi(cfg.RefreshExpiration)
 		if refreshExpErr != nil {
 			slog.Error("refresh token hash", "error", refreshExpErr)
@@ -296,7 +327,7 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 	}
 }
 
-func hashRefreshToken(token string) string {
+func hashToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(hash[:])
 }
@@ -320,7 +351,7 @@ func GenerateAccess(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		refreshHash := hashRefreshToken(request.RefreshToken)
+		refreshHash := hashToken(request.RefreshToken)
 
 		refreshRecord, refreshRecordError := repository.GetRefreshTokenByHash(c.Request.Context(), pool, refreshHash)
 
@@ -367,7 +398,7 @@ func GenerateAccess(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		var newRefreshHash = hashRefreshToken(refreshToken)
+		var newRefreshHash = hashToken(refreshToken)
 
 		expirationSeconds := cfg.RefreshExpiration
 
@@ -416,7 +447,7 @@ func RevokeRefreshToken(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		hashedToken := hashRefreshToken(request.RefreshToken)
+		hashedToken := hashToken(request.RefreshToken)
 
 		_, refreshHashRecordErr := repository.RevokeRefreshToken(c.Request.Context(), pool, time.Now(), hashedToken)
 		if refreshHashRecordErr != nil {
@@ -431,6 +462,67 @@ func RevokeRefreshToken(pool *pgxpool.Pool) gin.HandlerFunc {
 		c.JSON(http.StatusOK, RevokeAccessResponse{
 			Status:  true,
 			Message: "Refresh token revoked successfully",
+		})
+	}
+}
+
+// @Summary Verify Email
+// @Description Allow user verify email
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param token query string true "Email verification token"
+// @Success 200 {object} VerifyEmailResponse
+// @Failure 400 {object} map[string]any
+// @Failure 401 {object} map[string]any
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/v1/auth/verify-email [post]
+func VerifyEmail(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var token = c.Query("token")
+		tokenHash := hashToken(token)
+		tokenHashRecord, tokenHashRecordError := repository.GetEmailVerificationToken(c.Request.Context(), pool, tokenHash)
+		if tokenHashRecordError != nil {
+			if errors.Is(tokenHashRecordError, pgx.ErrNoRows) {
+				WriteError(c, http.StatusUnauthorized, "Invalid or expired token")
+				return
+			}
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		}
+
+		user, getUserError := repository.GetUserByID(c.Request.Context(), pool, tokenHashRecord.UserID)
+		if getUserError != nil {
+			if errors.Is(getUserError, pgx.ErrNoRows) {
+				WriteError(c, http.StatusUnauthorized, "User not found")
+				return
+			}
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		}
+
+		if user.EmailVerifiedAt != nil {
+			c.JSON(http.StatusOK, VerifyEmailResponse{
+				Status:  true,
+				Message: "Email already verified",
+			})
+			return
+		}
+
+		updateEmailVerifiedAtError := repository.UpdateEmailVerifiedAt(c.Request.Context(), pool, user.ID)
+
+		if updateEmailVerifiedAtError != nil {
+			if errors.Is(updateEmailVerifiedAtError, pgx.ErrNoRows) {
+				WriteError(c, http.StatusUnauthorized, "User not found")
+				return
+			}
+			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
+			return
+		}
+
+		c.JSON(http.StatusOK, VerifyEmailResponse{
+			Status:  true,
+			Message: "Email verified successfully",
 		})
 	}
 }

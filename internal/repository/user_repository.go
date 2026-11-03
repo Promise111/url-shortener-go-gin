@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/Promise111/url-shortener-go-gin/internal/model"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -130,4 +131,25 @@ func CreateUser(c context.Context, pool *pgxpool.Pool, email string, password_ha
 	}
 
 	return &user, nil
+}
+
+func UpdateEmailVerifiedAt(c context.Context, pool *pgxpool.Pool, userID string) error {
+	ctx, cancelFunc := CtxTimeout(c)
+	defer cancelFunc()
+
+	var query = `
+	UPDATE users SET email_verified_at = NOW() WHERE id = $1 AND email_verified_at IS NULL;
+	`
+
+	cmdTag, error := pool.Exec(ctx, query, userID)
+
+	if error != nil {
+		return error
+	}
+
+	if cmdTag.RowsAffected() == 0 {
+		return pgx.ErrNoRows
+	}
+
+	return nil
 }

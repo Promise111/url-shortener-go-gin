@@ -242,6 +242,59 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/auth/verify-email": {
+            "post": {
+                "description": "Allow user verify email",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Verify Email",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Email verification token",
+                        "name": "token",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.VerifyEmailResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/health": {
             "get": {
                 "description": "Returns the health status of the shortener API.",
@@ -952,7 +1005,7 @@ const docTemplate = `{
                     "type": "string",
                     "example": "Refresh token revoked successfully"
                 },
-                "true": {
+                "status": {
                     "type": "boolean",
                     "example": true
                 }
@@ -1043,6 +1096,19 @@ const docTemplate = `{
                 "username": {
                     "type": "string",
                     "example": "randomgee"
+                }
+            }
+        },
+        "handler.VerifyEmailResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "Email verified successfully"
+                },
+                "status": {
+                    "type": "boolean",
+                    "example": true
                 }
             }
         },

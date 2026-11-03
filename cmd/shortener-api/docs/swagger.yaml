@@ -220,7 +220,7 @@ definitions:
       message:
         example: Refresh token revoked successfully
         type: string
-      "true":
+      status:
         example: true
         type: boolean
     type: object
@@ -284,6 +284,15 @@ definitions:
       username:
         example: randomgee
         type: string
+    type: object
+  handler.VerifyEmailResponse:
+    properties:
+      message:
+        example: Email verified successfully
+        type: string
+      status:
+        example: true
+        type: boolean
     type: object
   model.Status:
     enum:
@@ -492,6 +501,42 @@ paths:
             additionalProperties: true
             type: object
       summary: Register User
+      tags:
+      - auth
+  /api/v1/auth/verify-email:
+    post:
+      consumes:
+      - application/json
+      description: Allow user verify email
+      parameters:
+      - description: Email verification token
+        in: query
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.VerifyEmailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Verify Email
       tags:
       - auth
   /api/v1/health:
