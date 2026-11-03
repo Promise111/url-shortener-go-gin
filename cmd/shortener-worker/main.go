@@ -91,6 +91,21 @@ func main() {
 		return nil
 	})
 
+	mux.HandleFunc(queue.TaskDeleteEmailVerificationToken, func(ctx context.Context, task *asynq.Task) error {
+		var p queue.DeleteVerificationTokenByUserIDPayload
+		var unmarshalError error
+		unmarshalError = json.Unmarshal(task.Payload(), &p)
+		if unmarshalError != nil {
+			return unmarshalError
+		}
+		var deleteEmailVerificationTokenError = repository.DeleteEmailVerificationTokenByUserID(ctx, pool, p.UserID)
+		if deleteEmailVerificationTokenError != nil {
+			return deleteEmailVerificationTokenError
+		}
+
+		return nil
+	})
+
 	scheduler := asynq.NewScheduler(asynq.RedisClientOpt{Addr: cfg.RedisADDR}, nil)
 
 	expireTask := queue.ExpireLinkTask()
