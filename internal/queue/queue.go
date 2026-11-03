@@ -17,11 +17,16 @@ type RefreshHashPayload struct {
 	UserID      string    `json:"user_id"`
 }
 
+type DeleteVerificationTokenByUserIDPayload struct {
+	UserID string `json:"user_id"`
+}
+
 const (
-	TaskIncrement           = "redirect_increment"
-	TaskExpire              = "expire_link"
-	TaskPersistRefresh      = "persist_refresh"
-	TaskClearExpiredRefresh = "clear_expired_refresh"
+	TaskIncrement                    = "redirect_increment"
+	TaskExpire                       = "expire_link"
+	TaskPersistRefresh               = "persist_refresh"
+	TaskClearExpiredRefresh          = "clear_expired_refresh"
+	TaskDeleteEmailVerificationToken = "delete_email_verification_token"
 )
 
 func IncrementLinkTask(shortCode string) (*asynq.Task, error) {
@@ -41,12 +46,21 @@ func PersistRefreshTokenTask(refreshTokenHash string, expiration time.Time, user
 	return asynq.NewTask(TaskPersistRefresh, body), nil
 }
 
-func ExpireLinkTask() (*asynq.Task) {
+func ExpireLinkTask() *asynq.Task {
 	return asynq.NewTask(TaskExpire, nil, asynq.MaxRetry(5), asynq.Timeout(time.Second*20))
 }
 
 func ClearExpiredRefreshHashTask() (*asynq.Task, error) {
 	return asynq.NewTask(TaskClearExpiredRefresh, nil), nil
+}
+
+func DeleteEmailVerificationTokenByUserID(userID string) (*asynq.Task, error) {
+	var body, marshalError = json.Marshal(DeleteVerificationTokenByUserIDPayload{UserID: userID})
+	if marshalError != nil {
+		return nil, marshalError
+	}
+
+	return asynq.NewTask(TaskDeleteEmailVerificationToken, body), nil
 }
 
 func NewClient(redisAddr string) *asynq.Client {
