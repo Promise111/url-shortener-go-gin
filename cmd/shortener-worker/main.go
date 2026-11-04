@@ -91,6 +91,7 @@ func main() {
 		return nil
 	})
 
+	// Available for async email-token cleanup; verify/resend delete sync in handlers today.
 	mux.HandleFunc(queue.TaskDeleteEmailVerificationToken, func(ctx context.Context, task *asynq.Task) error {
 		var p queue.DeleteVerificationTokenByUserIDPayload
 		var unmarshalError error

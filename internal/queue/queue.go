@@ -54,6 +54,8 @@ func ClearExpiredRefreshHashTask() (*asynq.Task, error) {
 	return asynq.NewTask(TaskClearExpiredRefresh, nil), nil
 }
 
+// DeleteEmailVerificationTokenByUserID builds an asynq task for async token cleanup.
+// Verify/resend delete sync in the handlers today; this path is kept as an alternative.
 func DeleteEmailVerificationTokenByUserID(userID string) (*asynq.Task, error) {
 	var body, marshalError = json.Marshal(DeleteVerificationTokenByUserIDPayload{UserID: userID})
 	if marshalError != nil {
