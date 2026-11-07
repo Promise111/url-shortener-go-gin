@@ -36,11 +36,7 @@ import (
 func main() {
 	slog.Info("🚀 Shortener API Server Started!")
 
-	cfg, configErr := config.Load()
-	if configErr != nil {
-		slog.Error("Failed to load configuration!")
-		os.Exit(1)
-	}
+	cfg := config.Load()
 
 	var pool *pgxpool.Pool
 	var dbConnErr error

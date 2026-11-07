@@ -16,12 +16,12 @@ type Config struct {
 	AccessExpiration string
 }
 
-func Load() (*Config, error) {
+func Load() (*Config) {
 	var err error
 	err = dotenv.Load()
 	if err != nil {
 		slog.Error("Warning: ", "message", ".env file not found "+err.Error())
-		return nil, err
+		return nil
 	}
 
 	var config *Config = &Config{
@@ -33,5 +33,5 @@ func Load() (*Config, error) {
 		AccessExpiration: os.Getenv("ACCESS_EXPIRATION"),
 	}
 
-	return config, err
+	return config
 }

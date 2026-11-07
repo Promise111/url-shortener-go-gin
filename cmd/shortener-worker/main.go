@@ -17,11 +17,7 @@ import (
 )
 
 func main() {
-	cfg, cfgErr := config.Load()
-	if cfgErr != nil {
-		slog.Error("shortener-work", "configError ", "failed to load environment variables")
-		os.Exit(1)
-	}
+	cfg := config.Load()
 
 	var pool *pgxpool.Pool
 	var poolErr error
