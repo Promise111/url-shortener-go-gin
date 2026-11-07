@@ -21,7 +21,6 @@ func Load() (*Config) {
 	err = dotenv.Load()
 	if err != nil {
 		slog.Error("Warning: ", "message", ".env file not found "+err.Error())
-		return nil
 	}
 
 	var config *Config = &Config{
