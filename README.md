@@ -71,13 +71,13 @@ Request flow: **router → auth middleware (link group) → handler → reposito
 - PostgreSQL and Redis **or** Docker Desktop (Compose brings up both)
 - [Air](https://github.com/air-verse/air) (optional, live reload)
 - [swag](https://github.com/swaggo/swag) CLI (only when you change API comments)
-- [golang-migrate](https://github.com/golang-migrate/migrate) (apply SQL; still needed for Docker until you add a migrate service yourself)
+- [golang-migrate](https://github.com/golang-migrate/migrate) (apply SQL on the host, or add a Compose migrate service yourself)
 
 ## Setup
 
 1. Copy `.env.example` → `.env` and fill in values (`.env` is gitignored).
 2. **Local (no Docker):** create a Postgres database, run Redis, then apply migrations (`000001` … `000009`). `000005` adds `NOT NULL user_id` on `links`; empty the table first if you already have rows without an owner. `000007` creates `refresh_tokens`. `000008` adds `users.email_verified_at`. `000009` creates `email_verification_tokens`.
-3. **Docker:** Compose starts Postgres/Redis/api/worker. Apply migrations against the **published** Postgres port (e.g. `localhost:5433`) with the Compose DB user/password/name, or add your own one-shot migrate service later.
+3. **Docker:** Compose starts Postgres/Redis/api/worker. Migrate against the published Postgres port (e.g. `localhost:5433`) unless you add a migrate service.
 
 Example `.env` keys (see `.env.example`):
 
@@ -120,9 +120,9 @@ docker compose ps
 docker compose logs -f api worker
 ```
 
-Services: `postgres` (host **5433** → container 5432), `redis` (host **6380** → 6379), `api`, `worker`. API/worker use hostnames `postgres` / `redis` on the Compose network — not `localhost`.
+Services: `postgres` (host **5433** → container 5432), `redis` (host **6380** → 6379), `api`, `worker`. API/worker use `postgres` / `redis` on the Compose network — not `localhost`.
 
-Migrate once Postgres is up (host port **5433**):
+Migrate (host → published port), unless you add a Compose migrate service:
 
 ```bash
 migrate -path ./migrations -database "postgres://app:SECRET@localhost:5433/shortener?sslmode=disable" up
