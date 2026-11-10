@@ -18,6 +18,7 @@ Stack: **Go**, **Gin**, **PostgreSQL** (`pgx` pool), **Redis** (`go-redis` v9) f
 - asynq worker (`cmd/shortener-worker`): `redirect_increment` on each live redirect; `expire_link` every minute (scheduler) sets `status = expired` where `expires_at <= NOW()` and `status` is still `active`; daily `clear_expired_refresh` deletes expired refresh rows. Run the worker beside the API or clicks/`status` lag until it is up
 - Health check
 - Swagger UI at `/swagger/index.html` with **BearerAuth** on protected link operations
+- Docker Compose: Postgres, Redis, API, and worker (`Dockerfile` multi-stage build)
 
 ## Why two kinds of URL
 
@@ -57,40 +58,53 @@ internal/
   shortcode/           # random base62 short-code generator
   verificationToken/   # crypto/rand + hex opaque email-verify secret
 migrations/            # Postgres DDL (000001–000009)
+Dockerfile             # multi-stage build (api + worker binaries)
+compose.yml            # postgres, redis, api, worker
+.env.example           # env key names (copy to gitignored .env)
 ```
 
 Request flow: **router → auth middleware (link group) → handler → repository → Postgres**. Create and public redirect run the Redis limiter first (`INCR rl:{prefix}:{ip}`). Public redirect then: **Redis GET `link:` → (miss) Postgres → SET → 410 gates → enqueue `redirect_increment` → 307**. The worker pops that job and runs the increment `UPDATE`. Once a minute the worker scheduler enqueues `expire_link` (sweep). Handlers pass `c.Request.Context()`; the repository wraps SQL with a 5 second timeout.
 
 ## Prerequisites
 
-- Go 1.26+
-- PostgreSQL
-- Redis (Ping on startup; process exits if it cannot connect)
+- Go 1.26+ (for local Air / `go run`)
+- PostgreSQL and Redis **or** Docker Desktop (Compose brings up both)
 - [Air](https://github.com/air-verse/air) (optional, live reload)
 - [swag](https://github.com/swaggo/swag) CLI (only when you change API comments)
-- [golang-migrate](https://github.com/golang-migrate/migrate) (or apply the SQL files in order)
+- [golang-migrate](https://github.com/golang-migrate/migrate) (apply SQL; still needed for Docker until you add a migrate service yourself)
 
 ## Setup
 
-1. Create a database (name is up to you).
-2. Apply migrations in order (`000001` … `000009`). `000005` adds `NOT NULL user_id` on `links`; empty the table first if you already have rows without an owner. `000007` creates `refresh_tokens`. `000008` adds `users.email_verified_at`. `000009` creates `email_verification_tokens`.
-3. Copy the env vars below into a `.env` at the repo root (that file is gitignored):
+1. Copy `.env.example` → `.env` and fill in values (`.env` is gitignored).
+2. **Local (no Docker):** create a Postgres database, run Redis, then apply migrations (`000001` … `000009`). `000005` adds `NOT NULL user_id` on `links`; empty the table first if you already have rows without an owner. `000007` creates `refresh_tokens`. `000008` adds `users.email_verified_at`. `000009` creates `email_verification_tokens`.
+3. **Docker:** Compose starts Postgres/Redis/api/worker. Apply migrations against the **published** Postgres port (e.g. `localhost:5433`) with the Compose DB user/password/name, or add your own one-shot migrate service later.
+
+Example `.env` keys (see `.env.example`):
 
 ```env
+# Local Air
 DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/DBNAME?sslmode=disable
 JWT_SECRET=change-me-to-a-long-random-string
 ACCESS_EXPIRATION=900
 REFRESH_EXPIRATION=604800
 PORT=8003
 REDIS_ADDR=localhost:6379
+
+# Docker Compose (compose.yml)
+POSTGRES_PASSWORD=secret
+JWT_SECRET_KEY=change-me-to-a-long-random-string
 ```
 
-`config.Load()` uses `godotenv` and requires `.env` to exist. It maps:
+Avoid `$` inside secrets that Compose reads (it treats `$name` as interpolation). Prefer a plain string, or escape as `$$`.
+
+`config.Load()` tries `godotenv` then always reads `os.Getenv` (missing `.env` is OK in Docker when Compose injects env). Mapping:
 
 | Env var | Used for |
 |---|---|
-| `DATABASE_URL` | pgx connection string |
-| `JWT_SECRET` | HMAC-SHA256 key for issuing and verifying JWTs |
+| `DATABASE_URL` | pgx connection string (local Air; Compose overrides for api/worker) |
+| `JWT_SECRET` | HMAC-SHA256 key (local Air / process env name inside api container) |
+| `JWT_SECRET_KEY` | Compose-only: value injected into the api container as `JWT_SECRET` |
+| `POSTGRES_PASSWORD` | Compose Postgres + api/worker DB URLs |
 | `ACCESS_EXPIRATION` | Access JWT lifetime in **seconds** (e.g. `900` = 15 minutes) |
 | `REFRESH_EXPIRATION` | Refresh JWT / DB row lifetime in **seconds** (e.g. `604800` = 7 days) |
 | `PORT` | HTTP listen port and Swagger host |
@@ -98,7 +112,31 @@ REDIS_ADDR=localhost:6379
 
 ## Run
 
-Two processes. Same `.env` / `REDIS_ADDR`.
+### Docker Compose (recommended smoke path)
+
+```bash
+docker compose up --build -d
+docker compose ps
+docker compose logs -f api worker
+```
+
+Services: `postgres` (host **5433** → container 5432), `redis` (host **6380** → 6379), `api`, `worker`. API/worker use hostnames `postgres` / `redis` on the Compose network — not `localhost`.
+
+Migrate once Postgres is up (host port **5433**):
+
+```bash
+migrate -path ./migrations -database "postgres://app:SECRET@localhost:5433/shortener?sslmode=disable" up
+```
+
+Published API: `http://localhost:8003` (health: `/api/v1/health`, Swagger: `/swagger/index.html`).
+
+Stop: `docker compose down` (add `-v` only if you intend to wipe the Postgres volume).
+
+After changing `.env` values used by Compose: `docker compose up -d --force-recreate api worker`.
+
+### Local (Air)
+
+Two processes. Same `.env` / host `REDIS_ADDR`.
 
 API (terminal 1):
 

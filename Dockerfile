@@ -13,5 +13,5 @@ WORKDIR /app
 COPY --from=build /out/api /app/api
 COPY --from=build /out/worker /app/worker
 EXPOSE 8003
-CMD ["/app/api","/app/worker"]
+CMD ["/app/api"]
 
