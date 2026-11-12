@@ -361,6 +361,13 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/handler.HealthResponse"
                         }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
                     }
                 }
             }
@@ -742,6 +749,19 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "handler.Checks": {
+            "type": "object",
+            "properties": {
+                "postgres": {
+                    "type": "string",
+                    "example": "ok"
+                },
+                "redis": {
+                    "type": "string",
+                    "example": "ok"
+                }
+            }
+        },
         "handler.CreateLinkRequest": {
             "type": "object",
             "required": [
@@ -910,9 +930,16 @@ const docTemplate = `{
         "handler.HealthResponse": {
             "type": "object",
             "properties": {
+                "checks": {
+                    "$ref": "#/definitions/handler.Checks"
+                },
                 "message": {
                     "type": "string",
                     "example": "💪 Shortener API is up and running!"
+                },
+                "service_status": {
+                    "type": "string",
+                    "example": "ok"
                 },
                 "status": {
                     "type": "boolean",

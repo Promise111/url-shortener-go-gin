@@ -28,7 +28,7 @@ func Router(pool *pgxpool.Pool, cfg *config.Config, rds *redis.Client, asynqClie
 	var createLimiter = middleware.NewFixLimiter(10, 1*time.Minute, middleware.Create)
 
 	{
-		api.GET(HealthPrefix, handler.HealthHandler)
+		api.GET(HealthPrefix, handler.HealthHandler(pool, rds))
 	}
 
 	{

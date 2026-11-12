@@ -1,5 +1,14 @@
 basePath: /
 definitions:
+  handler.Checks:
+    properties:
+      postgres:
+        example: ok
+        type: string
+      redis:
+        example: ok
+        type: string
+    type: object
   handler.CreateLinkRequest:
     properties:
       expires_at:
@@ -117,8 +126,13 @@ definitions:
     type: object
   handler.HealthResponse:
     properties:
+      checks:
+        $ref: '#/definitions/handler.Checks'
       message:
         example: "\U0001F4AA Shortener API is up and running!"
+        type: string
+      service_status:
+        example: ok
         type: string
       status:
         example: true
@@ -599,6 +613,11 @@ paths:
           description: OK
           schema:
             $ref: '#/definitions/handler.HealthResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties: true
+            type: object
       summary: Health check
       tags:
       - health
