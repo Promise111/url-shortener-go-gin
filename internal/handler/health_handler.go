@@ -22,15 +22,15 @@ type HealthResponse struct {
 	Message       string `json:"message" example:"💪 Shortener API is up and running!"`
 }
 
-// HealthHandler reports whether the API process is running.
+// HealthHandler reports the status of API, Postgres and Redis. 
 //
 //	@Summary		Health check
-//	@Description	Returns the health status of the shortener API.
+//	@Description	Returns the health status of the API and services it depends on.
 //	@Tags			health
 //	@ID				healthCheck
 //	@Produce		json
 //	@Success		200	{object}	HealthResponse
-//	@Failure		503 {object} map[string]interface{}
+//	@Failure		503 {object}	HealthResponse
 //	@Router			/api/v1/health [get]
 func HealthHandler(pool *pgxpool.Pool, rds *redis.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
