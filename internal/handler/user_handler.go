@@ -48,8 +48,8 @@ type CreateUserResponse struct {
 }
 
 type LoginUserRequest struct {
-	Email    string `json:"email" binding:"omitempty,email" example:"hello@hi.com"`
-	Username string `json:"username" binding:"omitempty,min=3,max=30" example:"randomgee"`
+	Email    string `json:"email" binding:"required_without=Username,email" example:"hello@hi.com"`
+	Username string `json:"username" binding:"required_without=Email,min=3,max=30" example:"randomgee"`
 	Password string `json:"password" binding:"required,min=8,max=72" example:"****************"`
 }
 
@@ -249,6 +249,7 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 		var err error
 		var input LoginUserRequest
 		if err = c.ShouldBindJSON(&input); err != nil {
+			Validate(err)
 			WriteError(c, http.StatusBadRequest, err.Error())
 			return
 		}
