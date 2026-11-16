@@ -240,7 +240,7 @@ func RegisterUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Param request body LoginUserRequest true "Login payload"
 // @Success 200 {object} LoginResponse
 // @Failure 401 {object} map[string]any
-// @Failure 400 {object} map[string]any
+// @Failure 400 {object} ValidationError
 // @Failure 403 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/auth/login [post]
@@ -249,8 +249,8 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 		var err error
 		var input LoginUserRequest
 		if err = c.ShouldBindJSON(&input); err != nil {
-			Validate(err)
-			WriteError(c, http.StatusBadRequest, err.Error())
+			var errorSlice = Validate(err)
+			WriteBindError(c, errorSlice)
 			return
 		}
 		if err = input.ValidateEmailUsername(); err != nil {

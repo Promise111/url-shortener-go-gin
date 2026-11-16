@@ -60,6 +60,15 @@ definitions:
         example: true
         type: boolean
     type: object
+  handler.Error:
+    properties:
+      field:
+        example: email
+        type: string
+      message:
+        example: email must be a valid email address
+        type: string
+    type: object
   handler.GenerateAccessRequest:
     properties:
       refresh_token:
@@ -315,6 +324,19 @@ definitions:
         example: randomgee
         type: string
     type: object
+  handler.ValidationError:
+    properties:
+      errors:
+        items:
+          $ref: '#/definitions/handler.Error'
+        type: array
+      message:
+        example: Bad request
+        type: string
+      status:
+        example: false
+        type: boolean
+    type: object
   handler.VerifyEmailResponse:
     properties:
       message:
@@ -407,8 +429,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.ValidationError'
         "401":
           description: Unauthorized
           schema:
@@ -604,7 +625,7 @@ paths:
       - auth
   /api/v1/health:
     get:
-      description: Returns the health status of the shortener API.
+      description: Returns the health status of the API and services it depends on.
       operationId: healthCheck
       produces:
       - application/json
@@ -616,8 +637,7 @@ paths:
         "503":
           description: Service Unavailable
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.HealthResponse'
       summary: Health check
       tags:
       - health

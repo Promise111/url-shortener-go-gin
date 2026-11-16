@@ -56,8 +56,7 @@ const docTemplate = `{
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/handler.ValidationError"
                         }
                     },
                     "401": {
@@ -346,7 +345,7 @@ const docTemplate = `{
         },
         "/api/v1/health": {
             "get": {
-                "description": "Returns the health status of the shortener API.",
+                "description": "Returns the health status of the API and services it depends on.",
                 "produces": [
                     "application/json"
                 ],
@@ -365,8 +364,7 @@ const docTemplate = `{
                     "503": {
                         "description": "Service Unavailable",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/handler.HealthResponse"
                         }
                     }
                 }
@@ -835,6 +833,19 @@ const docTemplate = `{
                 }
             }
         },
+        "handler.Error": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "type": "string",
+                    "example": "email"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "email must be a valid email address"
+                }
+            }
+        },
         "handler.GenerateAccessRequest": {
             "type": "object",
             "required": [
@@ -1196,6 +1207,25 @@ const docTemplate = `{
                 "username": {
                     "type": "string",
                     "example": "randomgee"
+                }
+            }
+        },
+        "handler.ValidationError": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.Error"
+                    }
+                },
+                "message": {
+                    "type": "string",
+                    "example": "Bad request"
+                },
+                "status": {
+                    "type": "boolean",
+                    "example": false
                 }
             }
         },
