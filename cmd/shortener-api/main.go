@@ -3,17 +3,36 @@ package main
 import (
 	"log/slog"
 	"os"
+	"reflect"
+	"strings"
 
 	docs "github.com/Promise111/url-shortener-go-gin/cmd/shortener-api/docs"
 	"github.com/Promise111/url-shortener-go-gin/internal/config"
 	"github.com/Promise111/url-shortener-go-gin/internal/database"
 	"github.com/Promise111/url-shortener-go-gin/internal/queue"
 	"github.com/Promise111/url-shortener-go-gin/internal/router"
+	"github.com/gin-gonic/gin/binding"
+	"github.com/go-playground/validator/v10"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
+
+func setupJSONFieldNames() {
+	engine, ok := binding.Validator.Engine().(*validator.Validate)
+	if !ok {
+		return
+	}
+
+	engine.RegisterTagNameFunc(func(fld reflect.StructField) string {
+		name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
+		if name == "-" || name == "" {
+			return fld.Name
+		}
+		return name
+	})
+}
 
 //	@title			URL Shortener
 //	@version		1.0
@@ -56,6 +75,8 @@ func main() {
 
 	var asynqClient *asynq.Client = queue.NewClient(cfg.RedisADDR)
 	defer asynqClient.Close()
+
+	setupJSONFieldNames()
 
 	docs.SwaggerInfo.BasePath = "/"
 	docs.SwaggerInfo.Host = "localhost:" + cfg.Port
