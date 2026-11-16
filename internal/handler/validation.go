@@ -50,7 +50,7 @@ func Validate(err error) []Error {
 			case "max":
 				errorSlice = append(errorSlice, Error{Field: field, Message: field + " must not exceed " + param + " characters in length."})
 			default:
-				errorSlice = append(errorSlice, Error{Field: field, Message: "bad request"})
+				errorSlice = append(errorSlice, Error{Field: field, Message: field + " failed validation (" + tag + ")"})
 			}
 		}
 		return errorSlice
