@@ -166,7 +166,7 @@ func GenerateToken(user model.Users, cfg *config.Config, tokenType TokenType) (s
 // @Produce json
 // @Param request body RegisterUserRequest true "Create user payload"
 // @Success 201 {object} CreateUserResponse
-// @Failure 400 {object} map[string]any
+// @Failure 400 {object} ValidationError
 // @Failure 409 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/auth/register [post]
@@ -175,7 +175,7 @@ func RegisterUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		var err error
 		var input RegisterUserRequest
 		if err = c.ShouldBindJSON(&input); err != nil {
-			WriteError(c, http.StatusBadRequest, err.Error())
+			WriteBindError(c, Validate(err))
 			return
 		}
 		cost := bcrypt.DefaultCost
@@ -249,8 +249,7 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 		var err error
 		var input LoginUserRequest
 		if err = c.ShouldBindJSON(&input); err != nil {
-			var errorSlice = Validate(err)
-			WriteBindError(c, errorSlice)
+			WriteBindError(c, Validate(err))
 			return
 		}
 		if err = input.ValidateEmailUsername(); err != nil {
@@ -350,7 +349,7 @@ func hashToken(token string) string {
 // @Produce json
 // @Param request body GenerateAccessRequest true "Generate access payload"
 // @Success 200 {object} GenerateAccessResponse
-// @Failure 400 {object} map[string]any
+// @Failure 400 {object} ValidationError
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/auth/refresh [post]
@@ -358,7 +357,7 @@ func GenerateAccess(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var request GenerateAccessRequest
 		if bindError := c.ShouldBindJSON(&request); bindError != nil {
-			WriteError(c, http.StatusBadRequest, bindError.Error())
+			WriteBindError(c, Validate(bindError))
 			return
 		}
 
@@ -444,7 +443,7 @@ func GenerateAccess(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 // @Produce json
 // @Param request body RevokeRefreshRequest true "Logout payload"
 // @Success 200 {object} RevokeAccessResponse
-// @Failure 400 {object} map[string]any
+// @Failure 400 {object} ValidationError
 // @Failure 401 {object} map[string]any
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/auth/logout [post]
@@ -454,7 +453,7 @@ func RevokeRefreshToken(pool *pgxpool.Pool) gin.HandlerFunc {
 
 		err := c.ShouldBindJSON(&request)
 		if err != nil {
-			WriteError(c, http.StatusBadRequest, err.Error())
+			WriteBindError(c, Validate(err))
 			return
 		}
 
@@ -560,14 +559,14 @@ func VerifyEmail(pool *pgxpool.Pool) gin.HandlerFunc {
 // @Produce json
 // @Param request body ResendEmailVerificationTokenRequest true "User's email"
 // @Success 200 {object} ResendEmailVerificationTokenResponse
-// @Failure 400 {object} map[string]any
+// @Failure 400 {object} ValidationError
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/auth/resend-verification [post]
 func ResendEmailVerificationToken(pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var request ResendEmailVerificationTokenRequest
 		if bindError := c.ShouldBindJSON(&request); bindError != nil {
-			WriteError(c, http.StatusBadRequest, "Please enter valid email")
+			WriteBindError(c, Validate(bindError))
 			return
 		}
 		lowerTrimEmail := LowerTrim(request.Email)

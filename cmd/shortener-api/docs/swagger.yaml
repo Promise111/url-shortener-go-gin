@@ -470,8 +470,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.ValidationError'
         "401":
           description: Unauthorized
           schema:
@@ -507,8 +506,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.ValidationError'
         "401":
           description: Unauthorized
           schema:
@@ -544,8 +542,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.ValidationError'
         "409":
           description: Conflict
           schema:
@@ -579,8 +576,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.ValidationError'
         "500":
           description: Internal Server Error
           schema:
@@ -696,8 +692,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.ValidationError'
         "500":
           description: Internal Server Error
           schema:
@@ -796,8 +791,7 @@ paths:
         "400":
           description: Bad Request
           schema:
-            additionalProperties: true
-            type: object
+            $ref: '#/definitions/handler.ValidationError'
         "404":
           description: Not Found
           schema:

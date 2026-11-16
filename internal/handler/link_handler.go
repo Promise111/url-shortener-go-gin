@@ -206,7 +206,7 @@ func getUserIdFromContext(c *gin.Context) (string, error) {
 // @Produce json
 // @Param request body CreateLinkRequest true "Create Link payload"
 // @Success 201 {object} CreateLinkResponse
-// @Failure 400 {object} map[string]any
+// @Failure 400 {object} ValidationError
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/links [post]
 // @Security BearerAuth
@@ -221,7 +221,7 @@ func CreateLinkHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		if err = c.ShouldBindJSON(&CreateLinkReq); err != nil {
-			WriteError(c, http.StatusBadRequest, err.Error())
+			WriteBindError(c, Validate(err))
 			return
 		}
 
@@ -564,7 +564,7 @@ func DeleteLinkByIDHandler(pool *pgxpool.Pool, rds *redis.Client) gin.HandlerFun
 // @Produce json
 // @Success 200 {object} UpdateLinkResponse
 // @Failure 404 {object} map[string]interface{}
-// @Failure 400 {object} map[string]interface{}
+// @Failure 400 {object} ValidationError
 // @Failure 500 {object} map[string]interface{}
 // @Router /api/v1/links/{id} [patch]
 // @Security BearerAuth
@@ -601,7 +601,7 @@ func UpdateLinksByIdHandler(pool *pgxpool.Pool, rds *redis.Client) gin.HandlerFu
 
 		var req UpdateLinkRequest
 		if err = c.ShouldBindJSON(&req); err != nil {
-			WriteError(c, http.StatusBadRequest, err.Error())
+			WriteBindError(c, Validate(err))
 			return
 		}
 		if err = req.ValidateExpiresAt(); err != nil {

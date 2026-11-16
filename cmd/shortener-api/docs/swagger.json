@@ -114,8 +114,7 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/handler.ValidationError"
                         }
                     },
                     "401": {
@@ -169,8 +168,7 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/handler.ValidationError"
                         }
                     },
                     "401": {
@@ -224,8 +222,7 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/handler.ValidationError"
                         }
                     },
                     "409": {
@@ -276,8 +273,7 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/handler.ValidationError"
                         }
                     },
                     "500": {
@@ -457,8 +453,7 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/handler.ValidationError"
                         }
                     },
                     "500": {
@@ -665,8 +660,7 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": true
+                            "$ref": "#/definitions/handler.ValidationError"
                         }
                     },
                     "404": {
