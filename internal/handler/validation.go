@@ -2,8 +2,6 @@ package handler
 
 import (
 	"errors"
-	"fmt"
-	"log/slog"
 
 	"github.com/go-playground/validator/v10"
 )
@@ -20,7 +18,6 @@ type ValidationError struct {
 }
 
 func Validate(err error) []Error {
-	slog.Error("bind error", "type", fmt.Sprintf("%T", err), "err", err)
 	var ve validator.ValidationErrors
 	var errorSlice = make([]Error, 0)
 
