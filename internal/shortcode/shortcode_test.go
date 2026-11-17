@@ -17,7 +17,7 @@ func TestGenerate(t *testing.T) {
 	}
 
 	for i := 0; i < len(code); i++ {
-		if !strings.ContainsRune(alphabets, rune(code[i])){
+		if !strings.ContainsRune(alphabets, rune(code[i])) {
 			t.Fatalf("invalid char %q at %d", code[i], i)
 		}
 	}
