@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -15,6 +13,7 @@ import (
 	"github.com/Promise111/url-shortener-go-gin/internal/model"
 	"github.com/Promise111/url-shortener-go-gin/internal/repository"
 	"github.com/Promise111/url-shortener-go-gin/internal/verificationToken"
+	"github.com/Promise111/url-shortener-go-gin/internal/crypto"
 	"github.com/gin-gonic/gin"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
@@ -208,7 +207,7 @@ func RegisterUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 
 		slog.Info("Email verification token", "token", "http://localhost:8003/api/v1/auth/verify-email?token="+verificationToken)
 
-		verificationTokenHash := hashToken(verificationToken)
+		verificationTokenHash := crypto.HashToken(verificationToken)
 
 		createEmailVerificationTokenError := repository.CreateEmailVerificationToken(c.Request.Context(), pool, verificationTokenHash, user.ID)
 		if createEmailVerificationTokenError != nil {
@@ -300,7 +299,7 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		var refreshHash = hashToken(refreshToken)
+		var refreshHash = crypto.HashToken(refreshToken)
 		refreshExpSeconds, refreshExpErr := strconv.Atoi(cfg.RefreshExpiration)
 		if refreshExpErr != nil {
 			slog.Error("refresh token hash", "error", refreshExpErr)
@@ -337,11 +336,6 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 	}
 }
 
-func hashToken(token string) string {
-	hash := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(hash[:])
-}
-
 // @Summary Generate Access and Refresh Tokens
 // @Description Allow user generate access and refresh tokens
 // @Tags auth
@@ -361,7 +355,7 @@ func GenerateAccess(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		refreshHash := hashToken(request.RefreshToken)
+		refreshHash := crypto.HashToken(request.RefreshToken)
 
 		refreshRecord, refreshRecordError := repository.GetRefreshTokenByHash(c.Request.Context(), pool, refreshHash)
 
@@ -408,7 +402,7 @@ func GenerateAccess(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		var newRefreshHash = hashToken(refreshToken)
+		var newRefreshHash = crypto.HashToken(refreshToken)
 
 		expirationSeconds := cfg.RefreshExpiration
 
@@ -457,7 +451,7 @@ func RevokeRefreshToken(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		hashedToken := hashToken(request.RefreshToken)
+		hashedToken := crypto.HashToken(request.RefreshToken)
 
 		_, refreshHashRecordErr := repository.RevokeRefreshToken(c.Request.Context(), pool, time.Now(), hashedToken)
 		if refreshHashRecordErr != nil {
@@ -493,7 +487,7 @@ func VerifyEmail(pool *pgxpool.Pool) gin.HandlerFunc {
 			WriteError(c, http.StatusBadRequest, "Please enter a valid token query")
 			return
 		}
-		tokenHash := hashToken(token)
+		tokenHash := crypto.HashToken(token)
 		tokenHashRecord, tokenHashRecordError := repository.GetEmailVerificationToken(c.Request.Context(), pool, tokenHash)
 		if tokenHashRecordError != nil {
 			if errors.Is(tokenHashRecordError, pgx.ErrNoRows) {
@@ -599,7 +593,7 @@ func ResendEmailVerificationToken(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		tokenHash := hashToken(verificationToken)
+		tokenHash := crypto.HashToken(verificationToken)
 
 		deleteEmailTokenByUserIDError := repository.DeleteEmailVerificationTokenByUserID(c.Request.Context(), pool, user.ID)
 		if deleteEmailTokenByUserIDError != nil {
