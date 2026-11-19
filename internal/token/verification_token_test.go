@@ -1,4 +1,4 @@
-package verificationtoken
+package token
 
 import (
 	"testing"

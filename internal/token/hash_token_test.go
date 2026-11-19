@@ -1,4 +1,4 @@
-package cryptohash
+package token
 
 import (
 	"testing"
