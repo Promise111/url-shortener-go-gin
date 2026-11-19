@@ -184,7 +184,7 @@ type GetLinkResponse struct {
 }
 
 func LowerTrim(str string) string {
-	return strings.ToLower(strings.TrimSpace(str))
+	return strings.ToLower(strings.TrimSpace(strings.ReplaceAll(str, " ", "")))
 }
 
 func getUserIdFromContext(c *gin.Context) (string, error) {
