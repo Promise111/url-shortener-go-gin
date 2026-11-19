@@ -1,4 +1,4 @@
-package verificationToken
+package verificationtoken
 
 import (
 	"crypto/rand"

@@ -1,4 +1,4 @@
-package crypto
+package cryptohash
 
 import (
 	"crypto/sha256"

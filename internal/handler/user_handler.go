@@ -12,8 +12,8 @@ import (
 	"github.com/Promise111/url-shortener-go-gin/internal/database"
 	"github.com/Promise111/url-shortener-go-gin/internal/model"
 	"github.com/Promise111/url-shortener-go-gin/internal/repository"
-	"github.com/Promise111/url-shortener-go-gin/internal/verificationToken"
-	"github.com/Promise111/url-shortener-go-gin/internal/crypto"
+	"github.com/Promise111/url-shortener-go-gin/internal/verificationtoken"
+	"github.com/Promise111/url-shortener-go-gin/internal/cryptohash"
 	"github.com/gin-gonic/gin"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5"
@@ -197,7 +197,7 @@ func RegisterUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		// generate email verification token
-		verificationToken, generateVerificationTokenError := verificationToken.GenerateVerificationToken()
+		verificationToken, generateVerificationTokenError := verificationtoken.GenerateVerificationToken()
 
 		if generateVerificationTokenError != nil {
 			slog.Error("Generate verification error", "error", generateVerificationTokenError)
@@ -207,7 +207,7 @@ func RegisterUserHandler(pool *pgxpool.Pool) gin.HandlerFunc {
 
 		slog.Info("Email verification token", "token", "http://localhost:8003/api/v1/auth/verify-email?token="+verificationToken)
 
-		verificationTokenHash := crypto.HashToken(verificationToken)
+		verificationTokenHash := cryptohash.HashToken(verificationToken)
 
 		createEmailVerificationTokenError := repository.CreateEmailVerificationToken(c.Request.Context(), pool, verificationTokenHash, user.ID)
 		if createEmailVerificationTokenError != nil {
@@ -299,7 +299,7 @@ func LoginHandler(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		var refreshHash = crypto.HashToken(refreshToken)
+		var refreshHash = cryptohash.HashToken(refreshToken)
 		refreshExpSeconds, refreshExpErr := strconv.Atoi(cfg.RefreshExpiration)
 		if refreshExpErr != nil {
 			slog.Error("refresh token hash", "error", refreshExpErr)
@@ -355,7 +355,7 @@ func GenerateAccess(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		refreshHash := crypto.HashToken(request.RefreshToken)
+		refreshHash := cryptohash.HashToken(request.RefreshToken)
 
 		refreshRecord, refreshRecordError := repository.GetRefreshTokenByHash(c.Request.Context(), pool, refreshHash)
 
@@ -402,7 +402,7 @@ func GenerateAccess(pool *pgxpool.Pool, cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		var newRefreshHash = crypto.HashToken(refreshToken)
+		var newRefreshHash = cryptohash.HashToken(refreshToken)
 
 		expirationSeconds := cfg.RefreshExpiration
 
@@ -451,7 +451,7 @@ func RevokeRefreshToken(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		hashedToken := crypto.HashToken(request.RefreshToken)
+		hashedToken := cryptohash.HashToken(request.RefreshToken)
 
 		_, refreshHashRecordErr := repository.RevokeRefreshToken(c.Request.Context(), pool, time.Now(), hashedToken)
 		if refreshHashRecordErr != nil {
@@ -487,7 +487,7 @@ func VerifyEmail(pool *pgxpool.Pool) gin.HandlerFunc {
 			WriteError(c, http.StatusBadRequest, "Please enter a valid token query")
 			return
 		}
-		tokenHash := crypto.HashToken(token)
+		tokenHash := cryptohash.HashToken(token)
 		tokenHashRecord, tokenHashRecordError := repository.GetEmailVerificationToken(c.Request.Context(), pool, tokenHash)
 		if tokenHashRecordError != nil {
 			if errors.Is(tokenHashRecordError, pgx.ErrNoRows) {
@@ -586,14 +586,14 @@ func ResendEmailVerificationToken(pool *pgxpool.Pool) gin.HandlerFunc {
 			return
 		}
 
-		verificationToken, genVerificationTokenErr := verificationToken.GenerateVerificationToken()
+		verificationToken, genVerificationTokenErr := verificationtoken.GenerateVerificationToken()
 		if genVerificationTokenErr != nil {
 			slog.Error("Error generating verification token", "error", genVerificationTokenErr)
 			WriteError(c, http.StatusInternalServerError, InternalServerErrorMsg)
 			return
 		}
 
-		tokenHash := crypto.HashToken(verificationToken)
+		tokenHash := cryptohash.HashToken(verificationToken)
 
 		deleteEmailTokenByUserIDError := repository.DeleteEmailVerificationTokenByUserID(c.Request.Context(), pool, user.ID)
 		if deleteEmailTokenByUserIDError != nil {
