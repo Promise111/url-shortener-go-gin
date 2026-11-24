@@ -14,6 +14,8 @@ type Config struct {
 	RedisADDR   string
 	RefreshExpiration string
 	AccessExpiration string
+	TestDatabaseURL string
+	RedisURL string
 }
 
 func Load() (*Config) {
@@ -30,6 +32,8 @@ func Load() (*Config) {
 		RedisADDR:   os.Getenv("REDIS_ADDR"),
 		RefreshExpiration: os.Getenv("REFRESH_EXPIRATION"),
 		AccessExpiration: os.Getenv("ACCESS_EXPIRATION"),
+		TestDatabaseURL: os.Getenv("TEST_DATABASE_URL"),
+		RedisURL: os.Getenv("TEST_REDIS"),
 	}
 
 	return config
