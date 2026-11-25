@@ -71,21 +71,25 @@ func TestRegisterAndLoginGate(t *testing.T) {
 	body := strings.NewReader(bodyString)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", body)
 	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
+	registerWriter := httptest.NewRecorder()
 
 	r := app.r
-	r.ServeHTTP(w, req)
+	r.ServeHTTP(registerWriter, req)
 
-	if w.Code != http.StatusCreated {
-		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	if registerWriter.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", registerWriter.Code, registerWriter.Body.String())
 	}
 
-	// loginBodyString := fmt.Sprintf(`{"Email":"%s","password":"MyPass234#"}`, randEmailGenerator)
-	// loginBody := strings.NewReader(loginBodyString)
-	// loginRequest := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", loginBody)
-	// r.ServeHTTP(w, loginRequest)
+	loginBodyString := fmt.Sprintf(`{"email":"%s","password":"MyPass234#"}`, randEmailGenerator)
+	t.Log(loginBodyString)
+	loginBody := strings.NewReader(loginBodyString)
+	loginRequest := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", loginBody)
+	loginRequest.Header.Set("Content-Type", "application/json")
+	loginWriter := httptest.NewRecorder()
+	r.ServeHTTP(loginWriter, loginRequest)
+	t.Log(loginWriter)
 
-	// if w.Code != http.StatusUnauthorized {
-	// 	t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
-	// }
+	if loginWriter.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, body = %s", loginWriter.Code, loginWriter.Body.String())
+	}
 }
