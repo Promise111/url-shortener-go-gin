@@ -81,13 +81,12 @@ func TestRegisterAndLoginGate(t *testing.T) {
 	}
 
 	loginBodyString := fmt.Sprintf(`{"email":"%s","password":"MyPass234#"}`, randEmailGenerator)
-	t.Log(loginBodyString)
+	
 	loginBody := strings.NewReader(loginBodyString)
 	loginRequest := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", loginBody)
 	loginRequest.Header.Set("Content-Type", "application/json")
 	loginWriter := httptest.NewRecorder()
 	r.ServeHTTP(loginWriter, loginRequest)
-	t.Log(loginWriter)
 
 	if loginWriter.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, body = %s", loginWriter.Code, loginWriter.Body.String())
