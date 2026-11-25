@@ -20,6 +20,42 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+type testApp struct {
+	cfg   *config.Config
+	pool  *pgxpool.Pool
+	asynq *asynq.Client
+	rds   *redis.Client
+	r     *gin.Engine
+}
+
+func setupTestApp(t *testing.T) *testApp {
+	t.Helper()
+
+	godotenv.Load("../../.env")
+	cfg := config.Load()
+
+	pool, err := database.Connect(cfg.TestDatabaseURL)
+	if err != nil {
+		t.Skipf("Database unavailable ", err)
+	}
+
+	rds, err := database.ConnectRedis(cfg.TestRedisURL)
+	if err != nil {
+		t.Skipf("Redis connection failed ", err)
+	}
+
+	asynqClient := queue.NewClient(cfg.TestRedisURL)
+
+	r := router.Router(pool, cfg, rds, asynqClient)
+
+	t.Cleanup(func() {
+		asynqClient.Close()
+		rds.Close()
+		pool.Close()
+	})
+	return &testApp{asynq: asynqClient, cfg: cfg, pool: pool, rds: rds, r: r}
+}
+
 func TestRegisterAndLoginGate(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	var cfg *config.Config
@@ -57,7 +93,7 @@ func TestRegisterAndLoginGate(t *testing.T) {
 	defer asynqClient.Close()
 
 	randEmailGenerator := fmt.Sprintf("u-%d@test.local", time.Now().UnixNano())
-	username := fmt.Sprintf("user%d",time.Now().UnixNano())
+	username := fmt.Sprintf("user%d", time.Now().UnixNano())
 
 	bodyString := fmt.Sprintf(`{"email":"%s","password":"MyPass234#","username":"%s"}`, randEmailGenerator, username)
 	body := strings.NewReader(bodyString)
@@ -69,6 +105,15 @@ func TestRegisterAndLoginGate(t *testing.T) {
 	r.ServeHTTP(w, req)
 
 	if w.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
+	}
+
+	loginBodyString := fmt.Sprintf(`{"Email":"%s","password":"MyPass234#"}`, randEmailGenerator)
+	loginBody := strings.NewReader(loginBodyString)
+	loginRequest := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", loginBody)
+	r.ServeHTTP(w, loginRequest)
+
+	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, body = %s", w.Code, w.Body.String())
 	}
 }

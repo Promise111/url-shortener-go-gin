@@ -15,7 +15,7 @@ type Config struct {
 	RefreshExpiration string
 	AccessExpiration string
 	TestDatabaseURL string
-	RedisURL string
+	TestRedisURL string
 }
 
 func Load() (*Config) {
@@ -33,7 +33,7 @@ func Load() (*Config) {
 		RefreshExpiration: os.Getenv("REFRESH_EXPIRATION"),
 		AccessExpiration: os.Getenv("ACCESS_EXPIRATION"),
 		TestDatabaseURL: os.Getenv("TEST_DATABASE_URL"),
-		RedisURL: os.Getenv("TEST_REDIS"),
+		TestRedisURL: os.Getenv("TEST_REDIS"),
 	}
 
 	return config
