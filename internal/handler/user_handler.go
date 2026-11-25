@@ -46,8 +46,8 @@ type CreateUserResponse struct {
 }
 
 type LoginUserRequest struct {
-	Email    string `json:"email" binding:"required_without=Username,email" example:"hello@hi.com"`
-	Username string `json:"username" binding:"required_without=Email,min=3,max=30" example:"randomgee"`
+	Email    string `json:"email" binding:"required_without=Username,omitempty,email" example:"hello@hi.com"`
+	Username string `json:"username" binding:"required_without=Email,omitempty,min=3,max=30" example:"randomgee"`
 	Password string `json:"password" binding:"required,min=8,max=72" example:"****************"`
 }
 
