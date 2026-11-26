@@ -1,6 +1,7 @@
 package handler_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +12,9 @@ import (
 	"github.com/Promise111/url-shortener-go-gin/internal/config"
 	"github.com/Promise111/url-shortener-go-gin/internal/database"
 	"github.com/Promise111/url-shortener-go-gin/internal/queue"
+	"github.com/Promise111/url-shortener-go-gin/internal/repository"
 	"github.com/Promise111/url-shortener-go-gin/internal/router"
+	"github.com/Promise111/url-shortener-go-gin/internal/token"
 	"github.com/gin-gonic/gin"
 	"github.com/hibiken/asynq"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -75,13 +78,14 @@ func TestRegisterAndLoginGate(t *testing.T) {
 
 	r := app.r
 	r.ServeHTTP(registerWriter, req)
+	t.Log(registerWriter.Body)
 
 	if registerWriter.Code != http.StatusCreated {
 		t.Fatalf("status = %d, body = %s", registerWriter.Code, registerWriter.Body.String())
 	}
 
 	loginBodyString := fmt.Sprintf(`{"email":"%s","password":"MyPass234#"}`, randEmailGenerator)
-	
+
 	loginBody := strings.NewReader(loginBodyString)
 	loginRequest := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", loginBody)
 	loginRequest.Header.Set("Content-Type", "application/json")
@@ -90,5 +94,38 @@ func TestRegisterAndLoginGate(t *testing.T) {
 
 	if loginWriter.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, body = %s", loginWriter.Code, loginWriter.Body.String())
+	}
+
+	tokenString, err := token.GenerateVerificationToken()
+	if err != nil {
+		t.Skipf("Generating token failed %v", err)
+	}
+
+	ctx := context.Background()
+	tokenHash := token.HashToken(tokenString)
+	user, err := repository.GetUserByEmail(ctx, app.pool, randEmailGenerator)
+	if err != nil {
+		t.Skipf("Failed to get user by id %v", err)
+	}
+
+	err = repository.DeleteEmailVerificationTokenByUserID(ctx, app.pool, user.ID)
+	if err != nil {
+		t.Skipf("Failed to delete email verification token %v", err)
+	}
+
+	err = repository.CreateEmailVerificationToken(ctx, app.pool, tokenHash, user.ID)
+	if err != nil {
+		t.Skipf("Failed to delete email verification token %v", err)
+	}
+
+	verifiyURLPath := fmt.Sprintf("/api/v1/auth/verify-email?token=%s", tokenString)
+	verifyEmailWriter := httptest.NewRecorder()
+	verifyEmailReq := httptest.NewRequest(http.MethodPost, verifiyURLPath, nil)
+	verifyEmailReq.Header.Set("Content-Type", "application/json")
+
+	r.ServeHTTP(verifyEmailWriter, verifyEmailReq)
+
+	if verifyEmailWriter.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", verifyEmailWriter.Code, verifyEmailWriter.Body.String())
 	}
 }
