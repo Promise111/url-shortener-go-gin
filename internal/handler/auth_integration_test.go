@@ -97,24 +97,24 @@ func TestRegisterAndLoginGate(t *testing.T) {
 
 	tokenString, err := token.GenerateVerificationToken()
 	if err != nil {
-		t.Skipf("Generating token failed %v", err)
+		t.Fatalf("Generating token failed %v", err)
 	}
 
 	ctx := context.Background()
 	tokenHash := token.HashToken(tokenString)
 	user, err := repository.GetUserByEmail(ctx, app.pool, randEmailGenerator)
 	if err != nil {
-		t.Skipf("Failed to get user by id %v", err)
+		t.Fatalf("Failed to get user by id %v", err)
 	}
 
 	err = repository.DeleteEmailVerificationTokenByUserID(ctx, app.pool, user.ID)
 	if err != nil {
-		t.Skipf("Failed to delete email verification token %v", err)
+		t.Fatalf("Failed to delete email verification token %v", err)
 	}
 
 	err = repository.CreateEmailVerificationToken(ctx, app.pool, tokenHash, user.ID)
 	if err != nil {
-		t.Skipf("Failed to delete email verification token %v", err)
+		t.Fatalf("Failed to create email verification token %v", err)
 	}
 
 	verifiyURLPath := fmt.Sprintf("/api/v1/auth/verify-email?token=%s", tokenString)
@@ -126,5 +126,16 @@ func TestRegisterAndLoginGate(t *testing.T) {
 
 	if verifyEmailWriter.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", verifyEmailWriter.Code, verifyEmailWriter.Body.String())
+	}
+
+	loginSuccessBody := strings.NewReader(loginBodyString)
+	loginSuccessRequest := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", loginSuccessBody)
+	loginSuccessRequest.Header.Set("Content-Type", "application/json")
+	loginSuccessWriter := httptest.NewRecorder()
+
+	r.ServeHTTP(loginSuccessWriter, loginSuccessRequest)
+
+	if loginSuccessWriter.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", loginSuccessWriter.Code, loginSuccessWriter.Body.String())
 	}
 }
