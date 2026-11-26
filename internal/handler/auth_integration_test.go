@@ -75,10 +75,14 @@ func doJSON(r *gin.Engine, method string, path string, body io.Reader) *httptest
 	return writer
 }
 
+func generateRandomEmail () string {
+	return fmt.Sprintf("u-%d@test.local", time.Now().UnixNano())
+}
+
 func TestRegisterAndLoginGate(t *testing.T) {
 	app := setupTestApp(t)
 
-	randEmailGenerator := fmt.Sprintf("u-%d@test.local", time.Now().UnixNano())
+	randEmailGenerator := generateRandomEmail()
 	username := fmt.Sprintf("user%d", time.Now().UnixNano())
 	password := "MyPass234#"
 	r := app.r
