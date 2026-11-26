@@ -69,8 +69,9 @@ func TestRegisterAndLoginGate(t *testing.T) {
 
 	randEmailGenerator := fmt.Sprintf("u-%d@test.local", time.Now().UnixNano())
 	username := fmt.Sprintf("user%d", time.Now().UnixNano())
+	password := "MyPass234#"
 
-	bodyString := fmt.Sprintf(`{"email":"%s","password":"MyPass234#","username":"%s"}`, randEmailGenerator, username)
+	bodyString := fmt.Sprintf(`{"email":"%s","password":"%s","username":"%s"}`, randEmailGenerator, password, username)
 	body := strings.NewReader(bodyString)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", body)
 	req.Header.Set("Content-Type", "application/json")
@@ -83,7 +84,7 @@ func TestRegisterAndLoginGate(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", registerWriter.Code, registerWriter.Body.String())
 	}
 
-	loginBodyString := fmt.Sprintf(`{"email":"%s","password":"MyPass234#"}`, randEmailGenerator)
+	loginBodyString := fmt.Sprintf(`{"email":"%s","password":"%s"}`, randEmailGenerator, password)
 
 	loginBody := strings.NewReader(loginBodyString)
 	loginRequest := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", loginBody)
@@ -117,9 +118,9 @@ func TestRegisterAndLoginGate(t *testing.T) {
 		t.Fatalf("Failed to create email verification token %v", err)
 	}
 
-	verifiyURLPath := fmt.Sprintf("/api/v1/auth/verify-email?token=%s", tokenString)
+	verifyURLPath := fmt.Sprintf("/api/v1/auth/verify-email?token=%s", tokenString)
 	verifyEmailWriter := httptest.NewRecorder()
-	verifyEmailReq := httptest.NewRequest(http.MethodPost, verifiyURLPath, nil)
+	verifyEmailReq := httptest.NewRequest(http.MethodPost, verifyURLPath, nil)
 	verifyEmailReq.Header.Set("Content-Type", "application/json")
 
 	r.ServeHTTP(verifyEmailWriter, verifyEmailReq)
