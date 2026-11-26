@@ -2,6 +2,7 @@ package handler_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/Promise111/url-shortener-go-gin/internal/config"
 	"github.com/Promise111/url-shortener-go-gin/internal/database"
+	"github.com/Promise111/url-shortener-go-gin/internal/handler"
 	"github.com/Promise111/url-shortener-go-gin/internal/queue"
 	"github.com/Promise111/url-shortener-go-gin/internal/repository"
 	"github.com/Promise111/url-shortener-go-gin/internal/router"
@@ -121,16 +123,29 @@ func TestRegisterAndLoginGate(t *testing.T) {
 	}
 
 	verifyURLPath := fmt.Sprintf("/api/v1/auth/verify-email?token=%s", tokenString)
-	verifyEmailWriter  := doJSON(r, http.MethodPost, verifyURLPath, nil)
+	verifyEmailWriter := doJSON(r, http.MethodPost, verifyURLPath, nil)
 
 	if verifyEmailWriter.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", verifyEmailWriter.Code, verifyEmailWriter.Body.String())
 	}
 
 	loginSuccessBody := strings.NewReader(loginBodyString)
-	loginSuccessWriter  := doJSON(r, http.MethodPost, "/api/v1/auth/login", loginSuccessBody)
+	loginSuccessWriter := doJSON(r, http.MethodPost, "/api/v1/auth/login", loginSuccessBody)
 
 	if loginSuccessWriter.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", loginSuccessWriter.Code, loginSuccessWriter.Body.String())
+	}
+
+	var loginResp handler.LoginResponse
+	if err := json.Unmarshal(loginSuccessWriter.Body.Bytes(), &loginResp); err != nil {
+		t.Fatalf("decode login body: %v; raw=%s", err, loginSuccessWriter.Body.String())
+	}
+
+	if loginResp.Data.AccessToken == "" {
+		t.Fatalf("expected accessToken, body=%s", loginSuccessWriter.Body.String())
+	}
+
+	if loginResp.Data.RefreshToken == "" {
+		t.Fatalf("expected refreshToken, body=%s", loginSuccessWriter.Body.String())
 	}
 }
