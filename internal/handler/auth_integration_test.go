@@ -3,6 +3,7 @@ package handler_test
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -64,21 +65,25 @@ func setupTestApp(t *testing.T) *testApp {
 	return &testApp{asynq: asynqClient, cfg: cfg, pool: pool, rds: rds, r: r}
 }
 
+func doJSON(r *gin.Engine, method string, path string, body io.Reader) *httptest.ResponseRecorder {
+	var req = httptest.NewRequest(method, path, body)
+	req.Header.Set("Content-Type", "application/json")
+	var writer = httptest.NewRecorder()
+	r.ServeHTTP(writer, req)
+	return writer
+}
+
 func TestRegisterAndLoginGate(t *testing.T) {
 	app := setupTestApp(t)
 
 	randEmailGenerator := fmt.Sprintf("u-%d@test.local", time.Now().UnixNano())
 	username := fmt.Sprintf("user%d", time.Now().UnixNano())
 	password := "MyPass234#"
+	r := app.r
 
 	bodyString := fmt.Sprintf(`{"email":"%s","password":"%s","username":"%s"}`, randEmailGenerator, password, username)
 	body := strings.NewReader(bodyString)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", body)
-	req.Header.Set("Content-Type", "application/json")
-	registerWriter := httptest.NewRecorder()
-
-	r := app.r
-	r.ServeHTTP(registerWriter, req)
+	registerWriter := doJSON(r, http.MethodPost, "/api/v1/auth/register", body)
 
 	if registerWriter.Code != http.StatusCreated {
 		t.Fatalf("status = %d, body = %s", registerWriter.Code, registerWriter.Body.String())
@@ -87,10 +92,7 @@ func TestRegisterAndLoginGate(t *testing.T) {
 	loginBodyString := fmt.Sprintf(`{"email":"%s","password":"%s"}`, randEmailGenerator, password)
 
 	loginBody := strings.NewReader(loginBodyString)
-	loginRequest := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", loginBody)
-	loginRequest.Header.Set("Content-Type", "application/json")
-	loginWriter := httptest.NewRecorder()
-	r.ServeHTTP(loginWriter, loginRequest)
+	loginWriter := doJSON(r, http.MethodPost, "/api/v1/auth/login", loginBody)
 
 	if loginWriter.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, body = %s", loginWriter.Code, loginWriter.Body.String())
@@ -119,22 +121,14 @@ func TestRegisterAndLoginGate(t *testing.T) {
 	}
 
 	verifyURLPath := fmt.Sprintf("/api/v1/auth/verify-email?token=%s", tokenString)
-	verifyEmailWriter := httptest.NewRecorder()
-	verifyEmailReq := httptest.NewRequest(http.MethodPost, verifyURLPath, nil)
-	verifyEmailReq.Header.Set("Content-Type", "application/json")
-
-	r.ServeHTTP(verifyEmailWriter, verifyEmailReq)
+	verifyEmailWriter  := doJSON(r, http.MethodPost, verifyURLPath, nil)
 
 	if verifyEmailWriter.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", verifyEmailWriter.Code, verifyEmailWriter.Body.String())
 	}
 
 	loginSuccessBody := strings.NewReader(loginBodyString)
-	loginSuccessRequest := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", loginSuccessBody)
-	loginSuccessRequest.Header.Set("Content-Type", "application/json")
-	loginSuccessWriter := httptest.NewRecorder()
-
-	r.ServeHTTP(loginSuccessWriter, loginSuccessRequest)
+	loginSuccessWriter  := doJSON(r, http.MethodPost, "/api/v1/auth/login", loginSuccessBody)
 
 	if loginSuccessWriter.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", loginSuccessWriter.Code, loginSuccessWriter.Body.String())
