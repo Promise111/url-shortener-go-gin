@@ -78,7 +78,6 @@ func TestRegisterAndLoginGate(t *testing.T) {
 
 	r := app.r
 	r.ServeHTTP(registerWriter, req)
-	t.Log(registerWriter.Body)
 
 	if registerWriter.Code != http.StatusCreated {
 		t.Fatalf("status = %d, body = %s", registerWriter.Code, registerWriter.Body.String())
