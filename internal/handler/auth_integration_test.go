@@ -105,7 +105,7 @@ func TestRegisterAndLoginGate(t *testing.T) {
 	tokenHash := token.HashToken(tokenString)
 	user, err := repository.GetUserByEmail(ctx, app.pool, randEmailGenerator)
 	if err != nil {
-		t.Fatalf("Failed to get user by id %v", err)
+		t.Fatalf("Failed to get user by email %v", err)
 	}
 
 	err = repository.DeleteEmailVerificationTokenByUserID(ctx, app.pool, user.ID)
